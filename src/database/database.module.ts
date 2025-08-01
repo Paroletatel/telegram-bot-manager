@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { TelegramBot } from '../models/telegram-bot.model';
+import { 
+  TelegramBot, 
+  User, 
+  RoleBot, 
+  RoleType 
+} from '../models';
 
 @Module({
   imports: [
@@ -10,13 +15,23 @@ import { TelegramBot } from '../models/telegram-bot.model';
       useFactory: (configService: ConfigService) => ({
         dialect: 'postgres',
         uri: configService.get<string>('DATABASE_URL'),
-        models: [TelegramBot],
+        models: [
+          TelegramBot,
+          User,
+          RoleBot,
+          RoleType
+        ],
         autoLoadModels: true,
         synchronize: true,
       }),
       inject: [ConfigService],
     }),
-    SequelizeModule.forFeature([TelegramBot]),
+    SequelizeModule.forFeature([
+      TelegramBot,
+      User,
+      RoleBot,
+      RoleType
+    ]),
   ],
   exports: [SequelizeModule],
 })

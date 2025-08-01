@@ -1,13 +1,13 @@
-import { IsString, IsNotEmpty, IsOptional, IsObject } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsObject, IsDefined } from 'class-validator';
 
 export class CreateBotDto {
   @IsString()
   @IsNotEmpty()
-  token: string;
+  token!: string;
 
   @IsString()
   @IsNotEmpty()
-  name: string;
+  name!: string;
 
   @IsOptional()
   @IsObject()

@@ -31,9 +31,10 @@ export class BotManagerCron {
         if (!runningBots.has(bot.token)) {
           try {
             this.logger.log(`Запуск бота: ${bot.name}`);
-            await this.workerBotService.createBot(bot.token, bot.name);
+            await this.workerBotService.createBot(bot.token, bot.name, bot.id);
           } catch (error) {
-            this.logger.error(`Ошибка запуска бота ${bot.name}: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Ошибка запуска бота ${bot.name}: ${errorMessage}`);
             // Можно добавить обновление статуса бота в базе данных, если необходимо
           }
         }
@@ -47,14 +48,16 @@ export class BotManagerCron {
             this.logger.log(`Остановка неактивного бота с токеном: ${token}`);
             await this.workerBotService.stopBot(token);
           } catch (error) {
-            this.logger.error(`Ошибка при остановке бота: ${error.message}`);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            this.logger.error(`Ошибка при остановке бота: ${errorMessage}`);
           }
         }
       }
       
       this.logger.debug('Синхронизация ботов завершена');
     } catch (error) {
-      this.logger.error(`Ошибка в процессе синхронизации ботов: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Ошибка в процессе синхронизации ботов: ${errorMessage}`);
     }
   }
 
@@ -79,7 +82,8 @@ export class BotManagerCron {
         }
       }
     } catch (error) {
-      this.logger.error(`Ошибка проверки состояния ботов: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Ошибка проверки состояния ботов: ${errorMessage}`);
     }
   }
 }
