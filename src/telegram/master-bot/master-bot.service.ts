@@ -24,7 +24,10 @@ export class MasterBotService {
     private readonly jwtAuthService: JwtAuthService,
     private readonly configService: ConfigService
   ) {
-    this.webAppUrl = this.configService.get<string>('WEB_APP_URL', 'http://localhost:3001');
+    this.webAppUrl = this.configService.get<string>(
+      "WEB_APP_URL",
+      "http://localhost:3001"
+    );
     // Создаём агент с увеличенным таймаутом
     const agent = new https.Agent({
       keepAlive: true,
@@ -70,23 +73,17 @@ export class MasterBotService {
    */
   private createRoleButtons(currentRole?: string) {
     const roles = [
-      { text: '👤 Пользователь', role: RoleTypeEnum.USER },
-      { text: '👑 Администратор', role: RoleTypeEnum.ADMIN },
+      { text: "👤 Пользователь", role: RoleTypeEnum.USER },
+      { text: "👑 Администратор", role: RoleTypeEnum.ADMIN },
     ];
 
     return {
       reply_markup: {
         inline_keyboard: [
-          roles.map(role => ({
-            text: `${currentRole === role.role ? '✅ ' : ''}${role.text}`,
+          roles.map((role) => ({
+            text: `${currentRole === role.role ? "✅ " : ""}${role.text}`,
             callback_data: `role_${role.role}`,
           })),
-          [
-            {
-              text: '🚀 Открыть веб-приложение',
-              web_app: { url: this.webAppUrl },
-            },
-          ],
         ],
       },
     };
@@ -99,57 +96,58 @@ export class MasterBotService {
     // Обработка команды /role
     this.bot.onText(/\/role/, async (msg: Message) => {
       if (!msg.from) return;
-      
+
       try {
         const userId = msg.from.id.toString();
         const username = msg.from.username || `user_${userId}`;
-        
+
         // Генерируем токен с ролью по умолчанию (USER)
         const token = await this.jwtAuthService.generateToken(
           userId,
           username,
           RoleTypeEnum.USER
         );
-        
+
         // Отправляем сообщение с кнопками выбора роли
         await this.bot.sendMessage(
           msg.chat.id,
-          'Выберите роль для тестирования:',
+          "Выберите роль для тестирования:",
           this.createRoleButtons(RoleTypeEnum.USER)
         );
-        
+
         // Сохраняем токен в состоянии пользователя
         this.userStates.set(msg.from.id, { token });
       } catch (error) {
-        this.logger.error('Ошибка при обработке команды /role:', error);
+        this.logger.error("Ошибка при обработке команды /role:", error);
         this.bot.sendMessage(
           msg.chat.id,
-          'Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже.'
+          "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже."
         );
       }
     });
 
     // Обработка нажатий на кнопки выбора роли
-    this.bot.on('callback_query', async (callbackQuery) => {
-      if (!callbackQuery.data?.startsWith('role_') || !callbackQuery.from) return;
-      
-      const role = callbackQuery.data.replace('role_', '') as RoleTypeEnum;
+    this.bot.on("callback_query", async (callbackQuery) => {
+      if (!callbackQuery.data?.startsWith("role_") || !callbackQuery.from)
+        return;
+
+      const role = callbackQuery.data.replace("role_", "") as RoleTypeEnum;
       const chatId = callbackQuery.message?.chat?.id;
       const messageId = callbackQuery.message?.message_id;
-      
+
       if (!chatId || !messageId) return;
-      
+
       try {
         const userId = callbackQuery.from.id.toString();
         const username = callbackQuery.from.username || `user_${userId}`;
-        
+
         // Генерируем новый токен с выбранной ролью
         const token = await this.jwtAuthService.generateToken(
           userId,
           username,
           role
         );
-        
+
         // Обновляем сообщение с кнопками, отмечая выбранную роль
         await this.bot.editMessageText(
           `Выбрана роль: ${role}\n\nТеперь вы можете открыть веб-приложение с выбранной ролью.`,
@@ -159,24 +157,24 @@ export class MasterBotService {
             ...this.createRoleButtons(role),
           }
         );
-        
+
         // Обновляем токен в состоянии пользователя
         this.userStates.set(callbackQuery.from.id, { token });
-        
+
         // Отправляем сообщение с кнопкой для открытия веб-приложения
         const webAppUrl = new URL(this.webAppUrl);
-        webAppUrl.searchParams.set('token', token);
-        
+        webAppUrl.searchParams.set("token", token);
+
         await this.bot.sendMessage(
           chatId,
           `Роль успешно изменена на: ${role}\n\n` +
-          'Нажмите на кнопку ниже, чтобы открыть веб-приложение с выбранной ролью:',
+            "Нажмите на кнопку ниже, чтобы открыть веб-приложение с выбранной ролью:",
           {
             reply_markup: {
               inline_keyboard: [
                 [
                   {
-                    text: '🚀 Открыть веб-приложение',
+                    text: "🚀 Открыть веб-приложение",
                     web_app: { url: webAppUrl.toString() },
                   },
                 ],
@@ -184,14 +182,14 @@ export class MasterBotService {
             },
           }
         );
-        
+
         // Подтверждаем обработку callback
         await this.bot.answerCallbackQuery(callbackQuery.id);
       } catch (error) {
-        this.logger.error('Ошибка при смене роли:', error);
+        this.logger.error("Ошибка при смене роли:", error);
         await this.bot.answerCallbackQuery(callbackQuery.id, {
-          text: 'Произошла ошибка при смене роли. Пожалуйста, попробуйте еще раз.',
-          show_alert: true
+          text: "Произошла ошибка при смене роли. Пожалуйста, попробуйте еще раз.",
+          show_alert: true,
         });
       }
     });
@@ -203,13 +201,13 @@ export class MasterBotService {
       this.bot.sendMessage(
         msg.chat.id,
         "Главный бот для управления ботами\n\n" +
-        "/register - регистрация нового бота\n" +
-        "/list - список ботов\n" +
-        "/toggle - включить/выключить бота\n" +
-        "/role - изменить роль для тестирования"
+          "/register - регистрация нового бота\n" +
+          "/list - список ботов\n" +
+          "/toggle - включить/выключить бота\n" +
+          "/role - изменить роль для тестирования"
       );
     });
-    
+
     // Инициализация обработчиков смены роли
     this.setupRoleSwitching();
 
@@ -322,7 +320,8 @@ export class MasterBotService {
             this.bot.startPolling();
           }
         } catch (e) {
-          const errorMessage = e instanceof Error ? e.message : "Произошла непредвиденная ошибка";
+          const errorMessage =
+            e instanceof Error ? e.message : "Произошла непредвиденная ошибка";
           this.logger.error(`Не удалось перезапустить опрос: ${errorMessage}`);
         }
       }, 5000);
@@ -331,7 +330,11 @@ export class MasterBotService {
 
   private async registerBot(token: string, name: string): Promise<void> {
     try {
-      const bot = await this.telegramBotModel.create({ token, name, isActive: true });
+      const bot = await this.telegramBotModel.create({
+        token,
+        name,
+        isActive: true,
+      });
       this.logger.log(`Зарегистрирован новый бот: ${name}`);
       await this.workerBotService.createBot(token, name, bot.id);
     } catch (error) {
@@ -365,7 +368,10 @@ export class MasterBotService {
         await this.workerBotService.stopBot(bot.token);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Произошла непредвиденная ошибка";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Произошла непредвиденная ошибка";
       this.logger.error(`Ошибка при изменении статуса бота: ${errorMessage}`);
       throw new Error(`Не удалось изменить статус бота: ${errorMessage}`);
     }
@@ -380,7 +386,10 @@ export class MasterBotService {
       }
       this.logger.log("Главный бот запущен");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Произошла непредвиденная ошибка";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Произошла непредвиденная ошибка";
       this.logger.error(`Ошибка запуска главного бота: ${errorMessage}`);
       throw error;
     }
@@ -393,7 +402,10 @@ export class MasterBotService {
       }
       this.logger.log("Главный бот остановлен");
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Произошла непредвиденная ошибка";
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "Произошла непредвиденная ошибка";
       this.logger.error(`Ошибка при остановке главного бота: ${errorMessage}`);
     }
   }

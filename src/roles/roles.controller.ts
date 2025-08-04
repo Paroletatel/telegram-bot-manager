@@ -2,21 +2,14 @@ import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Requ
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RolesService, RoleTypeEnum } from './roles.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { Roles } from './roles.decorator.js';
-import { RolesGuard } from './roles.guard.js';
+import { Roles } from './roles.decorator';
+import { RolesGuard } from './roles.guard';
 
-export class AssignRoleDto {
+export class AssignRoleDto { 
   constructor(
     public userId: string,
     public botId: string,
     public role: RoleTypeEnum
-  ) {}
-}
-
-export class UserRolesDto {
-  constructor(
-    public userId: string,
-    public roles: RoleTypeEnum[]
   ) {}
 }
 
