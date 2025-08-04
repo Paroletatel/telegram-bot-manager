@@ -6,8 +6,16 @@ import { RoleTypeEnum } from '../models/role-type.enum';
 import { User } from '../models/user.model';
 import { TelegramBot } from '../models/telegram-bot.model';
 import { Op } from 'sequelize';
+import { JwtAuthService } from '../auth/jwt.service';
 
 export { RoleTypeEnum };
+
+export interface GenerateTokenParams {
+  userId: string;
+  username: string;
+  role: RoleTypeEnum;
+  botId?: string;
+}
 
 @Injectable()
 export class RolesService implements OnModuleInit {
@@ -20,6 +28,7 @@ export class RolesService implements OnModuleInit {
     private userModel: typeof User,
     @InjectModel(TelegramBot)
     private botModel: typeof TelegramBot,
+    private readonly jwtAuthService: JwtAuthService,
   ) {}
 
   async onModuleInit() {
@@ -152,6 +161,29 @@ export class RolesService implements OnModuleInit {
     });
 
     return result > 0;
+  }
+
+  /**
+   * Генерирует JWT токен для пользователя с указанной ролью
+   * @param params Параметры для генерации токена
+   * @returns Сгенерированный JWT токен
+   */
+  async generateTokenForUser(params: GenerateTokenParams): Promise<string> {
+    const { userId, username, role, botId } = params;
+    
+    // Проверяем, что роль действительна
+    const isValidRole = Object.values(RoleTypeEnum).includes(role);
+    if (!isValidRole) {
+      throw new Error(`Недопустимая роль: ${role}`);
+    }
+
+    // Генерируем токен с помощью JwtAuthService
+    return this.jwtAuthService.generateToken(
+      userId,
+      username,
+      role,
+      botId
+    );
   }
 
   /**

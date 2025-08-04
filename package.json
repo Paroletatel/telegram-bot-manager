@@ -4,7 +4,10 @@
   "scripts": {
     "start": "node dist/main.js",
     "build": "tsc",
-    "dev": "ts-node src/main.ts"
+    "dev": "ts-node src/main.ts",
+    "migration:run": "sequelize-cli db:migrate",
+    "migration:undo": "sequelize-cli db:migrate:undo",
+    "migration:create": "sequelize-cli migration:generate --name"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.5",

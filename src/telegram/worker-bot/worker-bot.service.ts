@@ -3,19 +3,26 @@ import TelegramBot from 'node-telegram-bot-api';
 import * as https from 'https';
 import { UsersService } from '../../users/users.service';
 import { RolesService } from '../../roles/roles.service';
+import { JwtAuthService } from '../../auth/jwt.service';
 import { RoleTypeEnum } from '../../models/role-type.enum';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class WorkerBotService {
   private readonly logger = new Logger(WorkerBotService.name);
+
+  private readonly webAppUrl: string;
 
   constructor(
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
     @Inject(forwardRef(() => RolesService))
     private readonly rolesService: RolesService,
+    private readonly jwtAuthService: JwtAuthService,
+    private readonly configService: ConfigService,
   ) {
     this.logger.log('WorkerBotService инициализирован');
+    this.webAppUrl = this.configService.get<string>('WEB_APP_URL', 'http://localhost:3001');
   }
 
   private bots = new Map<string, TelegramBot>();
@@ -68,6 +75,8 @@ export class WorkerBotService {
       if (msg.text) {
         if (msg.text.startsWith('/start')) {
           return this.handleStartCommand(bot, msg, userRole);
+        } else if (msg.text.startsWith('/webapp')) {
+          return this.handleWebAppCommand(bot, msg, user.id, botId, userRole);
         } else if (msg.text.startsWith('/admin') && userRole === RoleTypeEnum.ADMIN) {
           return this.handleAdminCommand(bot, msg);
         } else if (msg.text.startsWith('/role')) {
@@ -94,7 +103,10 @@ export class WorkerBotService {
       `Ваша роль: ${userRole === RoleTypeEnum.ADMIN ? '👑 Администратор' : '👤 Пользователь'}\n\n` +
       `Доступные команды:\n` +
       `/start - Начать работу\n` +
+      `/webapp - Открыть веб-приложение\n` +
+      `/role - Переключить роль\n` +
       `/ping - Проверить бота\n` +
+      `/info - Информация о боте\n` +
       `${userRole === RoleTypeEnum.ADMIN ? '/admin - Панель администратора\n' : ''}`;
     
     await bot.sendMessage(msg.chat.id, welcomeMessage);
@@ -106,14 +118,67 @@ export class WorkerBotService {
 
   private async handleRoleCommand(bot: TelegramBot, msg: TelegramBot.Message, user: any, botId: string) {
     if (!msg.text) return;
-    const roleArg = msg.text.split(' ')[1];
+    
+    const roleArg = msg.text.split(' ')[1]?.toLowerCase();
+    
     if (roleArg && (roleArg === 'user' || roleArg === 'admin')) {
-      await this.rolesService.assignRoleToUser(user.id, botId, roleArg as RoleTypeEnum);
-      await bot.sendMessage(msg.chat.id, `✅ Ваша роль изменена на: ${roleArg}`);
+      try {
+        // Обновляем роль пользователя
+        await this.rolesService.assignRoleToUser(user.id, botId, roleArg as RoleTypeEnum);
+        
+        // Генерируем JWT токен с новой ролью
+        const token = await this.jwtAuthService.generateToken(
+          user.id.toString(),
+          user.username || `user_${user.id}`,
+          roleArg as RoleTypeEnum,
+          botId
+        );
+        
+        // Формируем URL веб-приложения с токеном
+        const webAppUrlWithToken = `${this.webAppUrl}?token=${encodeURIComponent(token)}`;
+      
+        // Отправляем сообщение с кнопкой для открытия веб-приложения
+        await bot.sendMessage(
+          msg.chat.id,
+          `✅ Ваша роль изменена на: ${roleArg === 'admin' ? '👑 Администратор' : '👤 Пользователь'}\n\n` +
+          'Теперь вы можете открыть веб-приложение с выбранной ролью:',
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🚀 Открыть веб-приложение',
+                    web_app: { url: webAppUrlWithToken }
+                  }
+                ]
+              ]
+            },
+            parse_mode: 'HTML',
+            disable_web_page_preview: true
+          }
+        );
+      } catch (error) {
+        this.logger.error('Ошибка при смене роли:', error);
+        await bot.sendMessage(
+          msg.chat.id,
+          '❌ Произошла ошибка при смене роли. Пожалуйста, попробуйте позже.'
+        );
+      }
     } else {
-      await bot.sendMessage(msg.chat.id, 
-        'Использование: /role <role>\n' +
-        'Доступные роли: user, admin'
+      // Показываем кнопки для выбора роли
+      await bot.sendMessage(
+        msg.chat.id,
+        'Выберите роль для входа в веб-приложение:',
+        {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '👤 Пользователь', callback_data: 'role_user' },
+                { text: '👑 Администратор', callback_data: 'role_admin' }
+              ]
+            ]
+          }
+        }
       );
     }
   }
@@ -153,36 +218,109 @@ export class WorkerBotService {
     );
   }
 
-  async createBot(token: string, name: string, botId: string): Promise<void> {
+  /**
+   * Обработчик команды /webapp - создает кнопку для открытия веб-приложения
+   */
+  private async handleWebAppCommand(bot: TelegramBot, msg: TelegramBot.Message, userId: string, botId: string, userRole: string) {
+    try {
+      // Генерируем JWT токен для пользователя с реальной ролью
+      const token = await this.jwtAuthService.generateToken(
+        userId,
+        msg.from?.username || msg.from?.first_name || 'Unknown',
+        userRole as RoleTypeEnum,
+        botId
+      );
+
+      // Определяем текст роли для отображения
+      const roleText = userRole === RoleTypeEnum.ADMIN ? '👑 Администратор' : '👤 Пользователь';
+      
+      // Создаем кнопку с веб-приложением
+      const webAppButton = {
+        reply_markup: {
+          inline_keyboard: [[
+            {
+              text: `🌐 Открыть веб-приложение (${roleText})`,
+              web_app: {
+                url: `${this.webAppUrl}?token=${token}`
+              }
+            }
+          ]]
+        }
+      };
+
+      await bot.sendMessage(
+        msg.chat.id,
+        `🌐 Нажмите кнопку ниже, чтобы открыть веб-приложение:\n\n📝 **Ваша роль:** ${roleText}`,
+        { ...webAppButton, parse_mode: 'Markdown' }
+      );
+
+      this.logger.log(`Веб-приложение открыто для пользователя ${userId}`);
+    } catch (error) {
+      this.logger.error('Ошибка при создании веб-приложения:', error);
+      await bot.sendMessage(
+        msg.chat.id,
+        'Произошла ошибка при создании ссылки на веб-приложение. Попробуйте позже.'
+      );
+    }
+  }
+
+  async createBot(token: string, name: string, botId: string): Promise<boolean> {
     try {
       if (this.bots.has(token)) {
         this.logger.log(`Бот ${name} уже запущен`);
-        return;
+        return true;
       }
       
       const options = this.createBotOptions();
-      this.logger.log(`Создание бота: ${name}`);
+      this.logger.log(`Создание бота: ${name}...`);
+      
+      // Сначала проверяем токен, пытаясь получить информацию о боте
+      try {
+        const testBot = new TelegramBot(token, { polling: false });
+        const botInfo = await testBot.getMe();
+        this.logger.log(`Проверка бота ${name} (${botInfo.username}): токен действителен`);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+        this.logger.error(`Неверный токен для бота ${name}: ${errorMessage}`);
+        return false;
+      }
+      
+      // Если проверка прошла успешно, создаем и запускаем бота
       const bot = new TelegramBot(token, options);
+      let isBotWorking = false;
+
+      // Обработчик успешного запуска
+      bot.on('polling_init', () => {
+        this.logger.log(`Бот ${name} успешно запущен и ожидает сообщений`);
+        isBotWorking = true;
+      });
 
       // Обработчик всех сообщений
       bot.on('message', async (msg: TelegramBot.Message) => {
-        await this.handleUserMessage(bot, msg, botId);
+        try {
+          await this.handleUserMessage(bot, msg, botId);
+        } catch (error) {
+          this.logger.error(`Ошибка при обработке сообщения в боте ${name}:`, error);
+        }
       });
 
       // Обработчики ошибок
       bot.on('error', (error: Error) => {
         this.logger.error(`Ошибка бота ${name}: ${error.message}`);
+        isBotWorking = false;
       });
 
       bot.on('polling_error', (error: Error) => {
         this.logger.error(`Ошибка опроса бота ${name}: ${error.message || 'Неизвестная ошибка'}`);
+        isBotWorking = false;
         
         // После ошибки попробуем перезапустить опрос через 5 секунд
-        setTimeout(() => {
+        setTimeout(async () => {
           try {
             if (this.bots.has(token) && !bot.isPolling()) {
               this.logger.log(`Попытка перезапустить опрос для бота ${name}...`);
-              bot.startPolling();
+              await bot.startPolling();
+              isBotWorking = true;
             }
           } catch (e) {
             const errorMessage = e instanceof Error ? e.message : String(e);
@@ -191,9 +329,18 @@ export class WorkerBotService {
         }, 5000);
       });
 
+      // Ждем некоторое время для инициализации бота
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Проверяем, запустился ли бот
+      if (!isBotWorking) {
+        throw new Error(`Бот ${name} не смог запуститься`);
+      }
+
       // Установить бота в карту активных ботов
       this.bots.set(token, bot);
       this.logger.log(`Бот ${name} успешно создан и запущен`);
+      return true;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Ошибка при создании бота ${name}: ${errorMessage}`);

@@ -7,7 +7,7 @@ import { TelegramBot as TelegramBotModel } from "../../models/telegram-bot.model
 import { WorkerBotService } from "../worker-bot/worker-bot.service";
 import { JwtAuthService } from "../../auth/jwt.service";
 import { ConfigService } from "@nestjs/config";
-import { RoleTypeEnum } from "../../models/role-type.enum";
+// Удален импорт RoleTypeEnum, так как функционал смены ролей перенесен в рабочие боты
 
 @Injectable()
 export class MasterBotService {
@@ -24,6 +24,10 @@ export class MasterBotService {
     private readonly jwtAuthService: JwtAuthService,
     private readonly configService: ConfigService
   ) {
+    // Загружаем и запускаем активных ботов при инициализации
+    this.loadAndStartBots().catch(error => {
+      this.logger.error('Ошибка при загрузке ботов:', error);
+    });
     this.webAppUrl = this.configService.get<string>(
       "WEB_APP_URL",
       "http://localhost:3001"
@@ -67,130 +71,278 @@ export class MasterBotService {
   }
 
   /**
-   * Создает кнопки для выбора роли
-   * @param currentRole Текущая роль пользователя (если есть)
-   * @returns Массив массивов с кнопками
+   * Создаем кнопку для открытия веб-приложения
+   * @returns Объект с разметкой кнопки
    */
-  private createRoleButtons(currentRole?: string) {
-    const roles = [
-      { text: "👤 Пользователь", role: RoleTypeEnum.USER },
-      { text: "👑 Администратор", role: RoleTypeEnum.ADMIN },
-    ];
-
+  private createWebAppButton() {
     return {
       reply_markup: {
         inline_keyboard: [
-          roles.map((role) => ({
-            text: `${currentRole === role.role ? "✅ " : ""}${role.text}`,
-            callback_data: `role_${role.role}`,
-          })),
+          [
+            {
+              text: "🚀 Открыть панель управления",
+              web_app: { url: this.webAppUrl },
+            },
+          ],
         ],
       },
     };
   }
 
   /**
-   * Обработчик смены роли
+   * Настройка обработчиков команд управления ботами
    */
-  private setupRoleSwitching(): void {
-    // Обработка команды /role
-    this.bot.onText(/\/role/, async (msg: Message) => {
-      if (!msg.from) return;
+  /**
+   * Загружает и запускает активных ботов из базы данных
+   */
+  private async loadAndStartBots(): Promise<void> {
+    try {
+      this.logger.log('Загрузка активных ботов из базы данных...');
+      const activeBots = await this.telegramBotModel.findAll({
+        where: { isActive: true }
+      });
 
-      try {
-        const userId = msg.from.id.toString();
-        const username = msg.from.username || `user_${userId}`;
-
-        // Генерируем токен с ролью по умолчанию (USER)
-        const token = await this.jwtAuthService.generateToken(
-          userId,
-          username,
-          RoleTypeEnum.USER
-        );
-
-        // Отправляем сообщение с кнопками выбора роли
-        await this.bot.sendMessage(
-          msg.chat.id,
-          "Выберите роль для тестирования:",
-          this.createRoleButtons(RoleTypeEnum.USER)
-        );
-
-        // Сохраняем токен в состоянии пользователя
-        this.userStates.set(msg.from.id, { token });
-      } catch (error) {
-        this.logger.error("Ошибка при обработке команды /role:", error);
-        this.bot.sendMessage(
-          msg.chat.id,
-          "Произошла ошибка при обработке запроса. Пожалуйста, попробуйте позже."
-        );
+      this.logger.log(`Найдено ${activeBots.length} активных ботов`);
+      
+      // Запускаем каждого активного бота
+      for (const bot of activeBots) {
+        try {
+          const isStarted = await this.workerBotService.createBot(bot.token, bot.name, bot.id);
+          
+          if (!isStarted) {
+            // Если бот не запустился, помечаем его как неактивного в БД
+            this.logger.warn(`Бот ${bot.name} не смог запуститься, помечаем как неактивный`);
+            bot.isActive = false;
+            await bot.save();
+          } else {
+            this.logger.log(`Бот ${bot.name} успешно запущен`);
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+          this.logger.error(`Критическая ошибка при запуске бота ${bot.name}:`, errorMessage);
+          
+          // В случае критической ошибки помечаем бота как неактивного
+          try {
+            bot.isActive = false;
+            await bot.save();
+            this.logger.warn(`Бот ${bot.name} помечен как неактивный из-за ошибки запуска`);
+          } catch (dbError) {
+            this.logger.error(`Ошибка при обновлении статуса бота ${bot.name} в БД:`, dbError);
+          }
+        }
       }
+    } catch (error) {
+      this.logger.error('Ошибка при загрузке ботов из базы данных:', error);
+      throw error;
+    }
+  }
+
+  private setupBotManagement(): void {
+    // Обработка команды /createbot
+    this.bot.onText(/\/createbot/, async (msg: Message) => {
+      if (!msg.from) {
+        await this.bot.sendMessage(msg.chat.id, 'Не удалось определить отправителя сообщения');
+        return;
+      }
+      
+      // Запрашиваем токен у пользователя
+      await this.bot.sendMessage(
+        msg.chat.id,
+        'Пожалуйста, отправьте токен нового бота, полученный от @BotFather',
+        { reply_markup: { force_reply: true } }
+      );
+      
+      // Сохраняем состояние пользователя
+      this.userStates.set(msg.from.id, { waitingForToken: true });
     });
 
-    // Обработка нажатий на кнопки выбора роли
-    this.bot.on("callback_query", async (callbackQuery) => {
-      if (!callbackQuery.data?.startsWith("role_") || !callbackQuery.from)
+    // Обработка команды /mybots
+    this.bot.onText(/\/mybots/, async (msg: Message) => {
+      if (!msg.from) {
+        await this.bot.sendMessage(msg.chat.id, 'Не удалось определить отправителя сообщения');
         return;
-
-      const role = callbackQuery.data.replace("role_", "") as RoleTypeEnum;
-      const chatId = callbackQuery.message?.chat?.id;
-      const messageId = callbackQuery.message?.message_id;
-
-      if (!chatId || !messageId) return;
-
+      }
+      
       try {
-        const userId = callbackQuery.from.id.toString();
-        const username = callbackQuery.from.username || `user_${userId}`;
-
-        // Генерируем новый токен с выбранной ролью
-        const token = await this.jwtAuthService.generateToken(
-          userId,
-          username,
-          role
-        );
-
-        // Обновляем сообщение с кнопками, отмечая выбранную роль
-        await this.bot.editMessageText(
-          `Выбрана роль: ${role}\n\nТеперь вы можете открыть веб-приложение с выбранной ролью.`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            ...this.createRoleButtons(role),
-          }
-        );
-
-        // Обновляем токен в состоянии пользователя
-        this.userStates.set(callbackQuery.from.id, { token });
-
-        // Отправляем сообщение с кнопкой для открытия веб-приложения
-        const webAppUrl = new URL(this.webAppUrl);
-        webAppUrl.searchParams.set("token", token);
-
-        await this.bot.sendMessage(
-          chatId,
-          `Роль успешно изменена на: ${role}\n\n` +
-            "Нажмите на кнопку ниже, чтобы открыть веб-приложение с выбранной ролью:",
-          {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  {
-                    text: "🚀 Открыть веб-приложение",
-                    web_app: { url: webAppUrl.toString() },
-                  },
-                ],
-              ],
-            },
-          }
-        );
-
-        // Подтверждаем обработку callback
-        await this.bot.answerCallbackQuery(callbackQuery.id);
-      } catch (error) {
-        this.logger.error("Ошибка при смене роли:", error);
-        await this.bot.answerCallbackQuery(callbackQuery.id, {
-          text: "Произошла ошибка при смене роли. Пожалуйста, попробуйте еще раз.",
-          show_alert: true,
+        const bots = await this.telegramBotModel.findAll({
+          where: { ownerId: msg.from.id },
+          attributes: ['id', 'name', 'token', 'isActive']
         });
+        
+        if (bots.length === 0) {
+          await this.bot.sendMessage(msg.chat.id, 'У вас пока нет созданных ботов. Используйте /createbot для создания нового бота.');
+          return;
+        }
+        
+        const botList = bots.map(bot => 
+          `${bot.name} (${bot.isActive ? '✅' : '❌'}) - /toggle_${bot.id}`
+        ).join('\n');
+        
+        await this.bot.sendMessage(msg.chat.id, `Ваши боты:\n${botList}`);
+      } catch (error) {
+        this.logger.error('Ошибка при получении списка ботов:', error);
+        await this.bot.sendMessage(msg.chat.id, 'Произошла ошибка при получении списка ботов. Пожалуйста, попробуйте позже.');
+      }
+    });
+    
+    // Обработка команды /help
+    this.bot.onText(/\/help/, (msg: Message) => {
+      this.bot.sendMessage(
+        msg.chat.id,
+        'Доступные команды:\n' +
+        '/start - Начать работу с ботом\n' +
+        '/createbot - Создать нового бота\n' +
+        '/mybots - Список моих ботов\n' +
+        '/help - Показать справку по командам'
+      );
+    });
+    
+    // Обработка текстовых сообщений (для получения токена)
+    this.bot.on('message', async (msg: Message) => {
+      if (!msg.from || !msg.text) return;
+      
+      const userId = msg.from.id;
+      const userState = this.userStates.get(userId);
+      
+      if (userState?.waitingForToken) {
+        try {
+          const token = msg.text.trim();
+          // Проверяем формат токена
+          if (!token.match(/^\d+:[-a-zA-Z0-9_]+$/)) {
+            await this.bot.sendMessage(msg.chat.id, 'Неверный формат токена. Пожалуйста, попробуйте еще раз.');
+            return;
+          }
+          
+          // Запрашиваем имя бота
+          await this.bot.sendMessage(
+            msg.chat.id,
+            'Теперь введите имя для вашего бота:',
+            { reply_markup: { force_reply: true } }
+          );
+          
+          // Обновляем состояние пользователя
+          this.userStates.set(userId, { 
+            waitingForBotName: true,
+            botToken: token 
+          });
+          
+        } catch (error) {
+          this.logger.error('Ошибка при обработке токена:', error);
+          await this.bot.sendMessage(msg.chat.id, 'Произошла ошибка при обработке токена. Пожалуйста, попробуйте еще раз.');
+          this.userStates.delete(userId);
+        }
+      } 
+      // Обработка имени бота
+      else if (userState?.waitingForBotName) {
+        try {
+          const botName = msg.text.trim();
+          const botToken = userState.botToken;
+          
+          // Создаем запись о боте в базе данных
+          const newBot = await this.telegramBotModel.create({
+            token: botToken,
+            name: botName,
+            ownerId: userId,
+            isActive: true // Создаем бота сразу активным
+          });
+          
+          // Автоматически запускаем созданного бота
+          try {
+            await this.workerBotService.createBot(botToken, botName, newBot.id);
+            this.logger.log(`Бот ${botName} автоматически запущен после создания`);
+            
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Бот "${botName}" успешно зарегистрирован и запущен! ✅\n` +
+              'Теперь вы можете использовать его для работы.\n' +
+              'Используйте команду /mybots для управления вашими ботами.'
+            );
+          } catch (startError) {
+            this.logger.error(`Ошибка при автозапуске бота ${botName}:`, startError);
+            // Если не удалось запустить, делаем бота неактивным
+            newBot.isActive = false;
+            await newBot.save();
+            
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Бот "${botName}" зарегистрирован, но не удалось его запустить. ❌\n` +
+              'Проверьте правильность токена и попробуйте активировать его через /mybots.'
+            );
+          }
+          
+        } catch (error) {
+          this.logger.error('Ошибка при создании бота:', error);
+          await this.bot.sendMessage(msg.chat.id, 'Произошла ошибка при создании бота. Пожалуйста, попробуйте еще раз.');
+        } finally {
+          // Очищаем состояние пользователя
+          this.userStates.delete(userId);
+        }
+      }
+    });
+    
+    // Обработка команд переключения ботов (/toggle_UUID)
+    this.bot.onText(/\/toggle_([a-f0-9-]+)/, async (msg: Message, match: RegExpExecArray | null) => {
+      if (!match || !msg.from) return;
+      
+      const botId = match[1];
+      const userId = msg.from.id;
+      
+      try {
+        const bot = await this.telegramBotModel.findOne({
+          where: { id: botId, ownerId: userId }
+        });
+        
+        if (!bot) {
+          await this.bot.sendMessage(msg.chat.id, 'Бот не найден или у вас нет к нему доступа.');
+          return;
+        }
+        
+        // Переключаем состояние бота
+        const newStatus = !bot.isActive;
+        
+        if (newStatus) {
+          // Включаем бота
+          try {
+            await this.workerBotService.createBot(bot.token, bot.name, bot.id);
+            bot.isActive = true;
+            await bot.save();
+            this.logger.log(`Бот ${bot.name} включен пользователем ${userId}`);
+            
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Бот "${bot.name}" успешно включен! ✅`
+            );
+          } catch (error) {
+            this.logger.error(`Ошибка при включении бота ${bot.name}:`, error);
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Не удалось включить бота "${bot.name}". Проверьте правильность токена. ❌`
+            );
+          }
+        } else {
+          // Выключаем бота
+          try {
+            await this.workerBotService.stopBot(bot.token);
+            bot.isActive = false;
+            await bot.save();
+            this.logger.log(`Бот ${bot.name} выключен пользователем ${userId}`);
+            
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Бот "${bot.name}" выключен. ❌`
+            );
+          } catch (error) {
+            this.logger.error(`Ошибка при выключении бота ${bot.name}:`, error);
+            await this.bot.sendMessage(
+              msg.chat.id,
+              `Ошибка при выключении бота "${bot.name}". ❌`
+            );
+          }
+        }
+        
+      } catch (error) {
+        this.logger.error('Ошибка при переключении бота:', error);
+        await this.bot.sendMessage(msg.chat.id, 'Произошла ошибка при переключении бота. Пожалуйста, попробуйте позже.');
       }
     });
   }
@@ -200,16 +352,15 @@ export class MasterBotService {
     this.bot.onText(/\/start/, (msg: Message) => {
       this.bot.sendMessage(
         msg.chat.id,
-        "Главный бот для управления ботами\n\n" +
-          "/register - регистрация нового бота\n" +
-          "/list - список ботов\n" +
-          "/toggle - включить/выключить бота\n" +
-          "/role - изменить роль для тестирования"
+        "/start - начать работу с ботом\n" +
+          "/createbot - создать нового бота\n" +
+          "/mybots - список моих ботов\n" +
+          "/help - показать справку по командам"
       );
     });
 
-    // Инициализация обработчиков смены роли
-    this.setupRoleSwitching();
+    // Настраиваем обработку команд управления ботами
+    this.setupBotManagement();
 
     // Обработка команды /register
     this.bot.onText(/\/register/, (msg: Message) => {
@@ -347,33 +498,62 @@ export class MasterBotService {
     }
   }
 
-  private async toggleBot(botId: string): Promise<void> {
+  private async toggleBot(botId: string): Promise<{ success: boolean; message: string }> {
+    const bot = await this.telegramBotModel.findByPk(botId);
+    if (!bot) {
+      const errorMsg = 'Бот не найден';
+      this.logger.error(errorMsg);
+      return { success: false, message: errorMsg };
+    }
+
     try {
-      const bot = await this.telegramBotModel.findByPk(botId);
-      if (!bot) {
-        throw new Error(`Бот с ID ${botId} не найден`);
-      }
-
-      bot.isActive = !bot.isActive;
-      await bot.save();
-      this.logger.log(
-        `Изменен статус бота ${bot.name} на ${
-          bot.isActive ? "активен" : "неактивен"
-        }`
-      );
-
       if (bot.isActive) {
-        await this.workerBotService.createBot(bot.token, bot.name, bot.id);
+        // Отключаем бота
+        try {
+          await this.workerBotService.stopBot(bot.token);
+          bot.isActive = false;
+          await bot.save();
+          this.logger.log(`Бот ${bot.name} успешно отключен`);
+          return { success: true, message: `Бот "${bot.name}" успешно отключен` };
+        } catch (error) {
+          const errorMsg = `Ошибка при отключении бота ${bot.name}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`;
+          this.logger.error(errorMsg);
+          return { success: false, message: errorMsg };
+        }
       } else {
-        await this.workerBotService.stopBot(bot.token);
+        // Включаем бота
+        try {
+          const isStarted = await this.workerBotService.createBot(bot.token, bot.name, bot.id);
+          
+          if (isStarted) {
+            bot.isActive = true;
+            await bot.save();
+            this.logger.log(`Бот ${bot.name} успешно включен`);
+            return { success: true, message: `Бот "${bot.name}" успешно включен` };
+          } else {
+            const errorMsg = `Не удалось запустить бота ${bot.name}. Проверьте токен.`;
+            this.logger.error(errorMsg);
+            return { success: false, message: errorMsg };
+          }
+        } catch (error) {
+          const errorMsg = `Ошибка при включении бота ${bot.name}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`;
+          this.logger.error(errorMsg);
+          
+          // Помечаем бота как неактивного в случае ошибки
+          try {
+            bot.isActive = false;
+            await bot.save();
+          } catch (dbError) {
+            this.logger.error(`Ошибка при обновлении статуса бота ${bot.name} в БД:`, dbError);
+          }
+          
+          return { success: false, message: errorMsg };
+        }
       }
     } catch (error) {
-      const errorMessage =
-        error instanceof Error
-          ? error.message
-          : "Произошла непредвиденная ошибка";
-      this.logger.error(`Ошибка при изменении статуса бота: ${errorMessage}`);
-      throw new Error(`Не удалось изменить статус бота: ${errorMessage}`);
+      const errorMsg = `Критическая ошибка при переключении бота ${bot.name}: ${error instanceof Error ? error.message : 'Неизвестная ошибка'}`;
+      this.logger.error(errorMsg);
+      return { success: false, message: errorMsg };
     }
   }
 

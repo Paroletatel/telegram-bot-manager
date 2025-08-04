@@ -29,6 +29,13 @@ export class TelegramBot extends Model {
   })
   name!: string;
 
+  @Column({
+    type: DataType.BIGINT,
+    allowNull: false,
+    field: 'owner_id'
+  })
+  ownerId!: number;
+
   @Default(true)
   @Column({
     type: DataType.BOOLEAN,

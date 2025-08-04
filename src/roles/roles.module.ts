@@ -6,9 +6,10 @@ import { User } from '../models/user.model';
 import { TelegramBot } from '../models/telegram-bot.model';
 import { RolesService } from './roles.service';
 import { RolesController } from './roles.controller';
-import { JwtModule } from '@nestjs/jwt';
+import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from '../auth/jwt.strategy';
+import { JwtAuthService } from '../auth/jwt.service';
 import { PassportModule } from '@nestjs/passport';
 import { TelegramModule } from '../telegram/telegram.module';
 
@@ -35,12 +36,18 @@ import { TelegramModule } from '../telegram/telegram.module';
   controllers: [RolesController],
   providers: [
     RolesService,
-    JwtStrategy
+    JwtStrategy,
+    JwtAuthService,
+    {
+      provide: 'JWT_SERVICE',
+      useClass: JwtService,
+    },
   ],
   exports: [
     RolesService,
     JwtModule,
-    PassportModule
+    PassportModule,
+    JwtAuthService,
   ]
 })
 export class RolesModule {}
