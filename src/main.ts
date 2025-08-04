@@ -9,10 +9,21 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
 
   // Enable CORS
+  const allowedOrigins = [
+    'http://localhost:3001',
+    'https://ee1e0e9285aa.ngrok-free.app',
+    process.env.FRONTEND_URL
+  ].filter(Boolean);
+  
   app.enableCors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3001',
+    origin: allowedOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
   });
+
+  // Global API prefix
+  app.setGlobalPrefix('api');
 
   // Global pipes
   app.useGlobalPipes(

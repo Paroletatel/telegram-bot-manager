@@ -16,15 +16,16 @@ export class BotManagerCron {
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async syncBots(): Promise<void> {
+    return; // Временно отключено для отладки
     try {
-      this.logger.debug('Синхронизация ботов начата');
+    //  this.logger.debug('Синхронизация ботов начата');
       
       const activeBots = await this.telegramBotModel.findAll({
         where: { isActive: true },
       });
 
       const runningBots = this.workerBotService.getBots();
-      this.logger.debug(`Найдено активных ботов в БД: ${activeBots.length}, запущено: ${runningBots.size}`);
+    //  this.logger.debug(`Найдено активных ботов в БД: ${activeBots.length}, запущено: ${runningBots.size}`);
 
       // Запускаем новые боты
       for (const bot of activeBots) {
@@ -33,7 +34,7 @@ export class BotManagerCron {
             this.logger.log(`Запуск бота: ${bot.name}`);
             await this.workerBotService.createBot(bot.token, bot.name, bot.id);
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = (error as Error).message || String(error);
             this.logger.error(`Ошибка запуска бота ${bot.name}: ${errorMessage}`);
             // Можно добавить обновление статуса бота в базе данных, если необходимо
           }
@@ -48,7 +49,7 @@ export class BotManagerCron {
             this.logger.log(`Остановка неактивного бота с токеном: ${token}`);
             await this.workerBotService.stopBot(token);
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
+            const errorMessage = (error as Error).message || String(error);
             this.logger.error(`Ошибка при остановке бота: ${errorMessage}`);
           }
         }
@@ -56,33 +57,33 @@ export class BotManagerCron {
       
       this.logger.debug('Синхронизация ботов завершена');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = (error as Error).message || String(error);
       this.logger.error(`Ошибка в процессе синхронизации ботов: ${errorMessage}`);
     }
   }
 
-  @Cron(CronExpression.EVERY_30_SECONDS)
+  @Cron(CronExpression.EVERY_MINUTE)
   async healthCheck(): Promise<void> {
+    return; // Временно отключено для отладки
     try {
       const runningBots = this.workerBotService.getBots();
-      this.logger.log(`Активных ботов: ${runningBots.size}`);
       
       // Дополнительно можно проверить состояние каждого бота
       if (runningBots.size > 0) {
-        this.logger.debug('Список активных ботов:');
+   //     this.logger.debug('Список активных ботов:');
         for (const [token, bot] of runningBots.entries()) {
           const botInfo = await this.telegramBotModel.findOne({ 
             where: { token }
           });
           if (botInfo) {
-            this.logger.debug(`- ${botInfo.name} (${token.substring(0, 8)}...)`);
+     //       this.logger.debug(`- ${botInfo.name} (${token.substring(0, 8)}...)`);
           } else {
-            this.logger.debug(`- Неизвестный бот (${token.substring(0, 8)}...)`);
+    //        this.logger.debug(`- Неизвестный бот (${token.substring(0, 8)}...)`);
           }
         }
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = (error as Error).message || String(error);
       this.logger.error(`Ошибка проверки состояния ботов: ${errorMessage}`);
     }
   }

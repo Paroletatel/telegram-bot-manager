@@ -303,39 +303,75 @@ export class MasterBotService {
         if (newStatus) {
           // Включаем бота
           try {
-            await this.workerBotService.createBot(bot.token, bot.name, bot.id);
-            bot.isActive = true;
+            const isStarted = await this.workerBotService.createBot(bot.token, bot.name, bot.id);
+            
+            if (isStarted) {
+              bot.isActive = true;
+              await bot.save();
+              this.logger.log(`Бот ${bot.name} успешно включен пользователем ${userId}`);
+              
+              await this.bot.sendMessage(
+                msg.chat.id,
+                `Бот "${bot.name}" успешно включен! ✅`
+              );
+            } else {
+              // Бот не запустился, оставляем его неактивным
+              bot.isActive = false;
+              await bot.save();
+              this.logger.warn(`Бот ${bot.name} не смог запуститься`);
+              
+              await this.bot.sendMessage(
+                msg.chat.id,
+                `Не удалось запустить бота "${bot.name}". Проверьте токен и попробуйте ещё раз. ❌`
+              );
+            }
+          } catch (error) {
+            // Критическая ошибка при запуске
+            bot.isActive = false;
             await bot.save();
-            this.logger.log(`Бот ${bot.name} включен пользователем ${userId}`);
+            const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+            this.logger.error(`Критическая ошибка при включении бота ${bot.name}: ${errorMessage}`);
             
             await this.bot.sendMessage(
               msg.chat.id,
-              `Бот "${bot.name}" успешно включен! ✅`
-            );
-          } catch (error) {
-            this.logger.error(`Ошибка при включении бота ${bot.name}:`, error);
-            await this.bot.sendMessage(
-              msg.chat.id,
-              `Не удалось включить бота "${bot.name}". Проверьте правильность токена. ❌`
+              `Критическая ошибка при запуске бота "${bot.name}": ${errorMessage} ❌`
             );
           }
         } else {
           // Выключаем бота
           try {
-            await this.workerBotService.stopBot(bot.token);
+            const isStopped = await this.workerBotService.stopBot(bot.token);
+            
+            // Обновляем статус в базе независимо от результата
             bot.isActive = false;
             await bot.save();
-            this.logger.log(`Бот ${bot.name} выключен пользователем ${userId}`);
+            
+            if (isStopped) {
+              this.logger.log(`Бот ${bot.name} успешно выключен пользователем ${userId}`);
+              
+              await this.bot.sendMessage(
+                msg.chat.id,
+                `Бот "${bot.name}" успешно выключен. ❌`
+              );
+            } else {
+              this.logger.warn(`Бот ${bot.name} был принудительно выключен`);
+              
+              await this.bot.sendMessage(
+                msg.chat.id,
+                `Бот "${bot.name}" выключен (с предупреждениями). ❌`
+              );
+            }
+          } catch (error) {
+            // Обновляем статус в базе даже при ошибке
+            bot.isActive = false;
+            await bot.save();
+            
+            const errorMessage = error instanceof Error ? error.message : 'Неизвестная ошибка';
+            this.logger.error(`Ошибка при выключении бота ${bot.name}: ${errorMessage}`);
             
             await this.bot.sendMessage(
               msg.chat.id,
-              `Бот "${bot.name}" выключен. ❌`
-            );
-          } catch (error) {
-            this.logger.error(`Ошибка при выключении бота ${bot.name}:`, error);
-            await this.bot.sendMessage(
-              msg.chat.id,
-              `Ошибка при выключении бота "${bot.name}". ❌`
+              `Ошибка при выключении бота "${bot.name}": ${errorMessage} ❌`
             );
           }
         }
@@ -401,15 +437,7 @@ export class MasterBotService {
       }
     });
 
-    // Обработка команды /toggle
-    this.bot.onText(/\/toggle/, (msg: Message) => {
-      if (!msg.from) {
-        this.logger.warn("Сообщение без отправителя");
-        return;
-      }
-      this.userStates.set(msg.from.id, { step: "awaiting_bot_id" });
-      this.bot.sendMessage(msg.chat.id, "Отправьте ID бота для переключения:");
-    });
+    // Команда /toggle удалена - используйте /toggle_<UUID> напрямую
 
     // Обработка всех текстовых сообщений
     this.bot.on("text", async (msg: Message) => {
@@ -437,11 +465,6 @@ export class MasterBotService {
             msg.chat.id,
             `Бот ${name} зарегистрирован и запущен!`
           );
-        } else if (state.step === "awaiting_bot_id") {
-          const botId = msg.text;
-          await this.toggleBot(botId);
-          this.userStates.delete(userId);
-          this.bot.sendMessage(msg.chat.id, "Статус бота изменен!");
         }
       } catch (error) {
         const errorMessage =

@@ -68,11 +68,24 @@ export class RolesService implements OnModuleInit {
     // Verify user and bot exist
     await this.verifyUserAndBotExist(userId, botId);
 
-    const [roleBot] = await this.roleBotModel.upsert({
-      userId,
-      botId,
-      roleTypeCode: roleType
+    // Используем findOrCreate вместо upsert для избежания проблем с индексами
+    const [roleBot, created] = await this.roleBotModel.findOrCreate({
+      where: {
+        userId,
+        botId
+      },
+      defaults: {
+        userId,
+        botId,
+        roleTypeCode: roleType
+      }
     });
+    
+    // Если запись уже существует, обновляем роль
+    if (!created && roleBot.roleTypeCode !== roleType) {
+      roleBot.roleTypeCode = roleType;
+      await roleBot.save();
+    }
 
     return roleBot.reload({
       include: [RoleType]
