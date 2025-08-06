@@ -11,8 +11,7 @@ async function bootstrap() {
   // Enable CORS
   const allowedOrigins = [
     'http://localhost:3001',
-    'https://ee1e0e9285aa.ngrok-free.app',
-    process.env.FRONTEND_URL
+    process.env.WEB_APP_URL
   ].filter(Boolean);
   
   app.enableCors({
