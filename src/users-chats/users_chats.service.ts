@@ -1,0 +1,72 @@
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { UsersChats } from './users_chats.model';
+import { Chats } from './chats.model';
+import axios from 'axios';
+import * as process from 'node:process';
+
+@Injectable()
+export class UsersChatsService {
+  constructor(
+    @InjectModel(UsersChats) private usersChatsRepository: typeof UsersChats,
+    @InjectModel(Chats) private chatsRepository: typeof Chats,
+  ) {}
+
+  async setGroupToUser(userId: string, groupId: string) {
+    const usersGroups = await this.usersChatsRepository.findOne({
+      where: {
+        userId,
+      },
+    });
+
+    const groups =
+      usersGroups && usersGroups.chatsIds ? usersGroups.chatsIds : [];
+    groups.push(groupId);
+
+    if (usersGroups) {
+      await this.usersChatsRepository.update(
+        { chatsIds: groups },
+        {
+          where: {
+            userId,
+          },
+        },
+      );
+    } else {
+      await this.usersChatsRepository.create({
+        userId,
+        chatsIds: groups,
+      });
+    }
+  }
+
+  async addChat(chatId: string, chatName: string) {
+    await this.chatsRepository.create({ chatId, chatName });
+  }
+
+  async getChats() {
+    const res = await this.chatsRepository.findAll();
+    return res.map((item) => item.chatId);
+  }
+
+  async getChatsWithNames() {
+    return await this.chatsRepository.findAll();
+  }
+
+  async getUsersChats(userId: string) {
+    const usersGroups = await this.usersChatsRepository.findOne({
+      where: {
+        userId,
+      },
+    });
+    return usersGroups?.chatsIds ? usersGroups.chatsIds : [];
+  }
+
+  async checkMembership(chatId: string, userId: string) {
+    const res = await axios.post(process.env.BOT_URL + '/membership', {
+      chatId,
+      userId,
+    });
+    return res.data;
+  }
+}
