@@ -12,6 +12,8 @@ export class PhoneNumbersService {
     @InjectModel(Form) private formRepository: typeof Form,
     @InjectModel(NewForm) private newFormRepository: typeof NewForm,
   ) {}
+
+  // Проверить существует ли номер телефона у нового участника
   async checkNewMember(userId: string) {
     const user = await this.phoneNumberRepository.findOne({
       where: {
@@ -22,6 +24,15 @@ export class PhoneNumbersService {
     if (user) return 'exists';
     else return 'new';
   }
+
+  // Создать нового участника регистрации
+  // Находим соответствующую телефону форму
+  // Если форма найдена, и есть данные (dataValues) то:
+  // - создаем телефонный номер с статусом "Одобрено" и messageStatus: "отправлено"
+  // - изменяем статус этой формы на "Одобрено"
+  // иначе:
+  // Создаем номер телефона со статусом "Новый"
+  // Создаем новую форму со статусом "Создана"
 
   async createNewMemberToRegistration(
     userId: string,
@@ -87,6 +98,7 @@ export class PhoneNumbersService {
     return;
   }
 
+  // Получить список новых номеров
   async getNewNumbersList() {
     const newMembers = await this.phoneNumberRepository.findAll({
       where: {
@@ -96,6 +108,9 @@ export class PhoneNumbersService {
     return newMembers;
   }
 
+  // Проверить новые номера
+  // отобрать номера со статусом "новый" и messageStatus null
+  // и при этом поменять messageStatus на "для отправки"
   async checkNewPhones() {
     const newPhones = await this.phoneNumberRepository.findAll({
       where: {
@@ -119,6 +134,9 @@ export class PhoneNumbersService {
     return newPhones;
   }
 
+  // Изменить статус номера
+  // меняем phoneNumberStatus на переданный статус
+  // и при этом меняем messageStatus на "для отправки"
   async changeNumberStatus(phoneNumber: string, status: string) {
     const formatedPhoneNumber = formatPhoneNumber(phoneNumber);
     await this.phoneNumberRepository.update(
@@ -134,6 +152,8 @@ export class PhoneNumbersService {
     );
   }
 
+  // Получить список новых одобренных номеров
+  // отобрать номера со статусом "одобрено" и messageStatus "для отправки"
   async getNewApprovedList() {
     const res = await this.phoneNumberRepository.findAll({
       where: {
@@ -145,6 +165,8 @@ export class PhoneNumbersService {
     return res;
   }
 
+  // Изменить статус сообщения
+  // меняем messageStatus на "отправлено"
   async setMessageStatus(userId: string) {
     await this.phoneNumberRepository.update(
       { messageStatus: 'sended' },
