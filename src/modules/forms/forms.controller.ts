@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
 import { FormsService } from './forms.service';
-import { AppFormDTO } from './app_form.dto';
+import { AppFormDTO } from './app-form.dto';
 
 @Controller('forms')
 export class FormsController {

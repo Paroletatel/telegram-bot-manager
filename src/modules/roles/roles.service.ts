@@ -1,10 +1,10 @@
 import { Injectable, OnModuleInit, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { RoleBot } from '../models/role-bot.model';
-import { RoleType } from '../models/role-type.model';
-import { RoleTypeEnum } from '../models/role-type.enum';
-import { User } from '../models/user.model';
-import { TelegramBot } from '../models/telegram-bot.model';
+import { RoleBot } from '../../models/role-bot.model';
+import { RoleType } from '../../models/role-type.model';
+import { RoleTypeEnum } from '../../models/role-type.enum';
+import { User } from '../../models/user.model';
+import { TelegramBot } from '../../models/telegram-bot.model';
 import { Op } from 'sequelize';
 import { JwtAuthService } from '../auth/jwt.service';
 

@@ -3,7 +3,7 @@ import { InjectModel } from "@nestjs/sequelize";
 import TelegramBot from "node-telegram-bot-api";
 import { Message } from "node-telegram-bot-api";
 import * as https from "https";
-import { TelegramBot as TelegramBotModel } from "../../models/telegram-bot.model";
+import { TelegramBot as TelegramBotModel } from "../../../models/telegram-bot.model";
 import { WorkerBotService } from "../worker-bot/worker-bot.service";
 import { JwtAuthService } from "../../auth/jwt.service";
 import { ConfigService } from "@nestjs/config";

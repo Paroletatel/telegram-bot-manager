@@ -1,9 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
-import { RoleBot } from '../models/role-bot.model';
-import { RoleType } from '../models/role-type.model';
-import { User } from '../models/user.model';
-import { TelegramBot } from '../models/telegram-bot.model';
+import { RoleBot } from '../../models/role-bot.model';
+import { RoleType } from '../../models/role-type.model';
+import { User } from '../../models/user.model';
+import { TelegramBot } from '../../models/telegram-bot.model';
 import { RolesService } from './roles.service';
 import { RolesController } from './roles.controller';
 import { JwtModule, JwtService } from '@nestjs/jwt';
@@ -11,7 +11,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JwtAuthService } from '../auth/jwt.service';
 import { PassportModule } from '@nestjs/passport';
-import { TelegramModule } from '../telegram/telegram.module';
+import { TelegramModule } from '../../telegram/telegram.module';
 
 @Module({
   imports: [

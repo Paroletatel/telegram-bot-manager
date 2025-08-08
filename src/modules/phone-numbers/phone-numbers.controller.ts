@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { PhoneNumbersService } from './phone_numbers.service';
+import { PhoneNumbersService } from './phone-numbers.service';
 
 @Controller('phoneNumbers')
 export class PhoneNumbersController {

@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { PhoneNumbersController } from './phone_numbers.controller';
-import { PhoneNumbersService } from './phone_numbers.service';
-import { PhoneNumber } from './phone_number.model';
+import { PhoneNumbersController } from './phone-numbers.controller';
+import { PhoneNumbersService } from './phone-numbers.service';
+import { PhoneNumber } from './phone-number.model';
 import { SequelizeModule } from '@nestjs/sequelize';
 import {Form} from "../forms/models/form.model";
 import { NewForm } from '../forms/models/new_form.model';

@@ -5,7 +5,7 @@ import { WorkerBotService } from './worker-bot/worker-bot.service';
 import { DatabaseModule } from '../database/database.module';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
-import { RolesModule } from '../roles/roles.module';
+import { RolesModule } from '../modules/roles/roles.module';
 import { JwtAuthService } from '../auth/jwt.service';
 
 @Module({

@@ -4,7 +4,7 @@ import * as https from 'https';
 import { UsersService } from '../../users/users.service';
 import { RolesService } from '../../roles/roles.service';
 import { JwtAuthService } from '../../auth/jwt.service';
-import { RoleTypeEnum } from '../../models/role-type.enum';
+import { RoleTypeEnum } from '../../../models/role-type.enum';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()

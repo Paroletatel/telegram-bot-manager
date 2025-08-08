@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
-import { UsersChatsService } from './users_chats.service';
+import { UsersChatsService } from './users-chats.service';
 
 @Controller('usersChats')
 export class UsersChatsController {

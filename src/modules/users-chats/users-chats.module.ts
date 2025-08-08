@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
-import { UsersChatsController } from './users_chats.controller';
-import { UsersChatsService } from './users_chats.service';
-import { UsersChats } from './users_chats.model';
+import { UsersChatsController } from './users-chats.controller';
+import { UsersChatsService } from './users-chats.service';
+import { UsersChats } from './users-chats.model';
 import { Chats } from './chats.model';
 import { SequelizeModule } from '@nestjs/sequelize';
 

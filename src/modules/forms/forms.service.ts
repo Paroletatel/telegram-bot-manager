@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Form } from './models/form.model';
-import { PhoneNumber } from '../phone-numbers/phone_number.model';
+import { PhoneNumber } from '../phone-numbers/phone-number.model';
 import { Op } from 'sequelize';
 import { Settings } from '../settings/settings.model';
-import { AppFormDTO } from './app_form.dto';
+import { AppFormDTO } from './app-form.dto';
 import { NewForm } from './models/new_form.model';
 import { FormPrev } from './models/form_prev.model';
 import { v4 as uuidv4 } from 'uuid';
 import { Contact } from '../contacts/contact.model';
-import { UsersChatsService } from '../users-chats/users_chats.service';
+import { UsersChatsService } from '../users-chats/users-chats.service';
 import axios from 'axios';
 import * as process from 'node:process';
 

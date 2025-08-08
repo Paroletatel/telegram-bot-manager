@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { UsersChats } from './users_chats.model';
+import { UsersChats } from './users-chats.model';
 import { Chats } from './chats.model';
 import axios from 'axios';
 import * as process from 'node:process';
