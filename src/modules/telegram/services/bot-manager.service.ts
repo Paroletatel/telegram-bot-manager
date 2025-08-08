@@ -177,3 +177,103 @@ export class BotManagerService {
   getAllBots(): IBotInstance[] {
     return Array.from(this.bots.values());
   }
+
+  getActiveBots(): IBotInstance[] {
+    return this.getAllBots().filter(bot => bot.isActive);
+  }
+
+  // Метод для получения статистики ботов
+  getBotStats(): {
+    totalBots: number;
+    activeBots: number;
+    bots: Array<{
+      id: string;
+      name: string;
+      isActive: boolean;
+      createdAt: Date;
+      lastActivity?: Date;
+    }>;
+  } {
+    const allBots = this.getAllBots();
+    const activeBots = this.getActiveBots();
+
+    return {
+      totalBots: allBots.length,
+      activeBots: activeBots.length,
+      bots: allBots.map(bot => ({
+        id: bot.id,
+        name: bot.name,
+        isActive: bot.isActive,
+        createdAt: bot.createdAt,
+        lastActivity: bot.lastActivity
+      }))
+    };
+  }
+
+  // Метод для проверки здоровья ботов
+  async performBotsHealthCheck(): Promise<{
+    totalBots: number;
+    activeBots: number;
+    unhealthyBots: string[];
+    overallHealth: 'healthy' | 'degraded' | 'unhealthy';
+  }> {
+    const allBots = this.getAllBots();
+    const activeBots = this.getActiveBots();
+    const unhealthyBots: string[] = [];
+
+    // Проверяем каждого бота на активность
+    for (const bot of allBots) {
+      if (!bot.isActive) {
+        unhealthyBots.push(bot.id);
+      } else {
+        // Дополнительная проверка - проверяем, действительно ли бот отвечает
+        try {
+          if (!bot.bot.isPolling()) {
+            unhealthyBots.push(bot.id);
+            bot.isActive = false;
+          }
+        } catch (error) {
+          unhealthyBots.push(bot.id);
+          bot.isActive = false;
+        }
+      }
+    }
+
+    let overallHealth: 'healthy' | 'degraded' | 'unhealthy';
+    const healthyRatio = activeBots.length / Math.max(allBots.length, 1);
+
+    if (healthyRatio >= 0.8) {
+      overallHealth = 'healthy';
+    } else if (healthyRatio >= 0.5) {
+      overallHealth = 'degraded';
+    } else {
+      overallHealth = 'unhealthy';
+    }
+
+    return {
+      totalBots: allBots.length,
+      activeBots: activeBots.length,
+      unhealthyBots,
+      overallHealth
+    };
+  }
+
+  // Метод для экстренной остановки всех ботов
+  async emergencyStopAllBots(): Promise<void> {
+    this.logger.warn('Экстренная остановка всех ботов!');
+    
+    const allBots = this.getAllBots();
+    const stopPromises = allBots.map(bot => this.stopBot(bot.id));
+    
+    await Promise.allSettled(stopPromises);
+    this.logger.log('Все боты остановлены в экстренном режиме');
+  }
+
+  // Очистка ресурсов при завершении работы
+  async cleanup(): Promise<void> {
+    this.logger.log('Очистка ресурсов BotManagerService...');
+    await this.emergencyStopAllBots();
+    this.bots.clear();
+    this.logger.log('Очистка BotManagerService завершена');
+  }
+}

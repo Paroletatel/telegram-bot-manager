@@ -102,7 +102,7 @@ export class KeyboardService {
       const inlineKeyboard = keyboard.getKeyboard(chatId.toString());
 
       await bot.sendMessage(chatId, text, {
-        reply_markup: JSON.stringify(inlineKeyboard),
+        reply_markup: inlineKeyboard,
         parse_mode: 'HTML'
       });
     } catch (error) {

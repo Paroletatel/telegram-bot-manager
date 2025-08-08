@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { UsersService } from '../../users/users.service';
-import { RolesService } from '../../modules/roles/roles.service';
+
 import { StateService } from './state.service';
 import { CreateMemberDto } from '../dto/telegram.dto';
+import { RolesService } from '@/modules/roles/roles.service';
 
 export enum MemberStatus {
   PENDING = 'pending',

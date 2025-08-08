@@ -1,7 +1,7 @@
 import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
 import { MasterBotConfig } from '../master-bot.service';
-import { MasterStatsService } from './master-stats.service';
+import { MasterStatsService } from './master-stats.service'
 import { MasterUserManagementService } from './master-user-management.service';
 
 @Injectable()
@@ -120,11 +120,11 @@ export class MasterCallbackService {
           chat_id: chatId,
           message_id: messageId,
           parse_mode: 'Markdown',
-          reply_markup: JSON.stringify({
+          reply_markup: {
             inline_keyboard: [[
               { text: '🔄 Обновить', callback_data: 'master_stats' }
             ]]
-          })
+          }
         });
       } else {
         await bot.sendMessage(chatId, stats, { parse_mode: 'Markdown' });
@@ -170,11 +170,11 @@ export class MasterCallbackService {
           chat_id: chatId,
           message_id: messageId,
           parse_mode: 'Markdown',
-          reply_markup: JSON.stringify({
+          reply_markup: {
             inline_keyboard: [[
               { text: '🔄 Обновить', callback_data: 'master_bots' }
             ]]
-          })
+          }
         });
       } else {
         await bot.sendMessage(chatId, botsInfo, { parse_mode: 'Markdown' });
