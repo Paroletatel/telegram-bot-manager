@@ -1,15 +1,16 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { UsersChats } from './users-chats.model';
-import { Chats } from './chats.model';
-import axios from 'axios';
-import * as process from 'node:process';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/sequelize";
+import { UsersChats } from "./users-chats.model";
+import { Chats } from "./chats.model";
+import { MembershipService } from "../telegram/services/membership.service";
+import * as process from "node:process";
 
 @Injectable()
 export class UsersChatsService {
   constructor(
     @InjectModel(UsersChats) private usersChatsRepository: typeof UsersChats,
     @InjectModel(Chats) private chatsRepository: typeof Chats,
+    private readonly membershipService: MembershipService
   ) {}
 
   async setGroupToUser(userId: string, groupId: string) {
@@ -30,7 +31,7 @@ export class UsersChatsService {
           where: {
             userId,
           },
-        },
+        }
       );
     } else {
       await this.usersChatsRepository.create({
@@ -62,11 +63,7 @@ export class UsersChatsService {
     return usersGroups?.chatsIds ? usersGroups.chatsIds : [];
   }
 
-  async checkMembership(chatId: string, userId: string) {
-    const res = await axios.post(process.env.BOT_URL + '/membership', {
-      chatId,
-      userId,
-    });
-    return res.data;
+  async checkUserMembership(chatId: string, userId: string): Promise<boolean> {
+    return await this.membershipService.checkMembership(chatId, userId);
   }
 }
