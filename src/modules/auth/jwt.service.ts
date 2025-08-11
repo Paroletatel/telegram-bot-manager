@@ -1,4 +1,4 @@
-import { RoleTypeEnum } from '@/models';
+import { RoleTypeEnum } from '../../models';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService as NestJwtService } from '@nestjs/jwt';

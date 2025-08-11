@@ -14,13 +14,12 @@ import { StatusCheckerService } from './worker-bot/services/status-checker.servi
 import { MembershipService } from './worker-bot/services/membership.service'; // ДОБАВИЛИ
 
 // Импорты других модулей
-import { TelegramBot as TelegramBotModel } from '@/models/telegram-bot.model';
+import { TelegramBot as TelegramBotModel } from '../../models/telegram-bot.model';
 import { UsersModule } from '../users/users.module';
 import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
-import { States } from '@/models/states.model';
+import { States } from '../../models/states.model';
 import { MembershipController } from './controllers/membership.controller';
-
 
 @Module({
   imports: [
@@ -29,6 +28,8 @@ import { MembershipController } from './controllers/membership.controller';
     forwardRef(() => UsersModule),
     forwardRef(() => RolesModule),
     forwardRef(() => AuthModule),
+  ],
+  controllers: [
     MembershipController,
   ],
   providers: [

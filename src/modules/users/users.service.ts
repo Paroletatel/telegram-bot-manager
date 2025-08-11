@@ -1,4 +1,4 @@
-import { User } from '@/models';
+import { User } from '../../models';
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 

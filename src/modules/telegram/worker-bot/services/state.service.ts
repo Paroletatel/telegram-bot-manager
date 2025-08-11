@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { IBotState } from '../interfaces/navigation.interface';
-import { States } from '@/models/states.model';
+import { States } from '../../../../models/states.model';
 
 @Injectable()
 export class StateService {
