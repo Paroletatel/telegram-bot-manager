@@ -11,7 +11,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from '../auth/jwt.strategy';
 import { JwtAuthService } from '../auth/jwt.service';
 import { PassportModule } from '@nestjs/passport';
-import { TelegramModule } from '../../telegram/telegram.module';
 
 @Module({
   imports: [

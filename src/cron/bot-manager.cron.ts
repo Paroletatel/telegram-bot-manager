@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/sequelize';
 import { TelegramBot } from '../models/telegram-bot.model';
-import { WorkerBotService } from '../telegram/worker-bot/worker-bot.service';
+import { WorkerBotService } from '../modules/telegram/worker-bot/worker-bot.service';
 
 @Injectable()
 export class BotManagerCron {

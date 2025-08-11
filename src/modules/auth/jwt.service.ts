@@ -1,7 +1,7 @@
+import { RoleTypeEnum } from '@/models';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService as NestJwtService } from '@nestjs/jwt';
-import { RoleTypeEnum } from '../models/role-type.enum';
 
 export interface JwtPayload {
   sub: string;      // User ID

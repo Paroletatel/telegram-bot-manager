@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { MasterBotService } from './telegram/master-bot/master-bot.service';
+import { MasterBotService } from './modules/telegram/master-bot/master-bot.service';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 

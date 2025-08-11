@@ -10,7 +10,7 @@ export class UsersChatsController {
     @Body('chatId') chatId: string,
     @Body('userId') userId: string,
   ) {
-    return this.usersChatsService.checkMembership(chatId, userId);
+    return this.usersChatsService.checkUserMembership(chatId, userId);
   }
 
   @Post('/addChat')

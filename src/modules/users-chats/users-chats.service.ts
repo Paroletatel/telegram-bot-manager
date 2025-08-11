@@ -2,8 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { InjectModel } from "@nestjs/sequelize";
 import { UsersChats } from "./users-chats.model";
 import { Chats } from "./chats.model";
-import { MembershipService } from "../telegram/services/membership.service";
-import * as process from "node:process";
+import { MembershipService } from "../telegram/worker-bot/services/membership.service";
 
 @Injectable()
 export class UsersChatsService {
@@ -64,6 +63,10 @@ export class UsersChatsService {
   }
 
   async checkUserMembership(chatId: string, userId: string): Promise<boolean> {
-    return await this.membershipService.checkMembership(chatId, userId);
+    console.log(chatId, userId);
+    
+    //return await this.membershipService.checkMembership(chatId, userId);
+    //TODO пока не разобрался, использую заглушку
+    return Promise.resolve(true);
   }
 }

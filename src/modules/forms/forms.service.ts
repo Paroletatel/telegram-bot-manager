@@ -1,17 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Form } from './models/form.model';
-import { PhoneNumber } from '../phone-numbers/phone-number.model';
-import { Op } from 'sequelize';
-import { Settings } from '../settings/settings.model';
-import { AppFormDTO } from './app-form.dto';
-import { NewForm } from './models/new_form.model';
-import { FormPrev } from './models/form_prev.model';
-import { v4 as uuidv4 } from 'uuid';
-import { Contact } from '../contacts/contact.model';
-import { UsersChatsService } from '../users-chats/users-chats.service';
-import axios from 'axios';
-import * as process from 'node:process';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/sequelize";
+import { Form } from "./models/form.model";
+import { PhoneNumber } from "../phone-numbers/phone-number.model";
+import { Op } from "sequelize";
+import { Settings } from "../settings/settings.model";
+import { AppFormDTO } from "./app-form.dto";
+import { NewForm } from "./models/new_form.model";
+import { FormPrev } from "./models/form_prev.model";
+import { v4 as uuidv4 } from "uuid";
+import { Contact } from "../contacts/contact.model";
+import { UsersChatsService } from "../users-chats/users-chats.service";
 
 @Injectable()
 export class FormsService {
@@ -25,7 +23,7 @@ export class FormsService {
     @InjectModel(FormPrev)
     private prevFormsRepository: typeof FormPrev,
     @InjectModel(Contact)
-    private contactsRepository: typeof Contact,
+    private contactsRepository: typeof Contact
   ) {}
   async continueRegistration(userId: string) {
     await this.settingsRepository.create({
@@ -45,7 +43,7 @@ export class FormsService {
         where: {
           userId,
         },
-      },
+      }
     );
   }
 
@@ -59,25 +57,25 @@ export class FormsService {
     if (isNew) return;
     const form = {
       ...formInfo,
-      status: 'approved',
+      status: "approved",
       searchAvailability: true,
       isUserStarted: true,
       // Приведение типов
       surnameV: formInfo.surnameV ?? false,
-      name: formInfo.name ?? '',
+      name: formInfo.name ?? "",
       nameV: formInfo.nameV ?? false,
-      otchestvo: formInfo.otchestvo ?? '',
+      otchestvo: formInfo.otchestvo ?? "",
       otchestvoV: formInfo.otchestvoV ?? false,
-      birthDate: formInfo.birthDate ?? '',
+      birthDate: formInfo.birthDate ?? "",
       birthDateV: formInfo.birthDateV ?? false,
-      tgName: formInfo.tgName ?? '',
+      tgName: formInfo.tgName ?? "",
       tgNameV: formInfo.tgNameV ?? false,
-      tgSurname: formInfo.tgSurname ?? '',
+      tgSurname: formInfo.tgSurname ?? "",
       tgSurnameV: formInfo.tgSurnameV ?? false,
-      tgUserName: formInfo.tgUserName ?? '',
+      tgUserName: formInfo.tgUserName ?? "",
       tgUserNameV: formInfo.tgUserNameV ?? false,
-      registrationDate: formInfo.registrationDate ?? '',
-      constPhone: formInfo.constPhone ?? '',
+      registrationDate: formInfo.registrationDate ?? "",
+      constPhone: formInfo.constPhone ?? "",
       constPhoneV: formInfo.constPhoneV ?? false,
       // Преобразование строк в массивы
       organizations: formInfo.organizations ? formInfo.organizations : [],
@@ -109,25 +107,25 @@ export class FormsService {
     const form = {
       ...formInfo,
       userId: tempUserId,
-      status: 'main',
+      status: "main",
       searchAvailability: true,
       isUserStarted: false,
       // Приведение типов
       surnameV: formInfo.surnameV ?? false,
-      name: formInfo.name ?? '',
+      name: formInfo.name ?? "",
       nameV: formInfo.nameV ?? false,
-      otchestvo: formInfo.otchestvo ?? '',
+      otchestvo: formInfo.otchestvo ?? "",
       otchestvoV: formInfo.otchestvoV ?? false,
-      birthDate: formInfo.birthDate ?? '',
+      birthDate: formInfo.birthDate ?? "",
       birthDateV: formInfo.birthDateV ?? false,
-      tgName: formInfo.tgName ?? '',
+      tgName: formInfo.tgName ?? "",
       tgNameV: formInfo.tgNameV ?? false,
-      tgSurname: formInfo.tgSurname ?? '',
+      tgSurname: formInfo.tgSurname ?? "",
       tgSurnameV: formInfo.tgSurnameV ?? false,
-      tgUserName: formInfo.tgUserName ?? '',
+      tgUserName: formInfo.tgUserName ?? "",
       tgUserNameV: formInfo.tgUserNameV ?? false,
-      registrationDate: formInfo.registrationDate ?? '',
-      constPhone: formInfo.constPhone ?? '',
+      registrationDate: formInfo.registrationDate ?? "",
+      constPhone: formInfo.constPhone ?? "",
       constPhoneV: formInfo.constPhoneV ?? false,
       // Преобразование строк в массивы
       organizations: formInfo.organizations ? formInfo.organizations : [],
@@ -145,7 +143,7 @@ export class FormsService {
 
   async rejectNewForm(formInfo: AppFormDTO) {
     if (!formInfo) return;
-    const form = { ...formInfo, status: 'rejected' };
+    const form = { ...formInfo, status: "rejected" };
 
     await this.newFormsRepository.update(form, {
       where: {
@@ -157,7 +155,7 @@ export class FormsService {
   async getNewFormsForApproveList() {
     const newForms = await this.newFormsRepository.findAll({
       where: {
-        status: 'waiting',
+        status: "waiting",
       },
     });
     const res = [];
@@ -170,7 +168,7 @@ export class FormsService {
   async getUsersWithApprovedForm() {
     const approvedForms = await this.formRepository.findAll({
       where: {
-        status: 'approved',
+        status: "approved",
       },
     });
     const res = [];
@@ -178,20 +176,20 @@ export class FormsService {
       res.push({ userId: form.userId, status: form.status });
       await this.formRepository.update(
         {
-          status: 'main',
+          status: "main",
         },
         {
           where: {
             userId: form.userId,
           },
-        },
+        }
       );
     }
     return res;
   }
 
   async searchUser(value: string) {
-    const fields = ['phoneNumber', 'systemName', 'INN', 'city'];
+    const fields = ["phoneNumber", "systemName", "INN", "city"];
     let forms: Form[] = [];
 
     for (const field of fields) {
@@ -207,7 +205,7 @@ export class FormsService {
 
     forms = forms.filter(
       (obj, index, self) =>
-        self.findIndex((o) => o.dataValues.id === obj.dataValues.id) === index,
+        self.findIndex((o) => o.dataValues.id === obj.dataValues.id) === index
     );
 
     const res = [];
@@ -290,7 +288,8 @@ export class FormsService {
     });
 
     try {
-      await axios.get(process.env.BOT_URL + '/deleteUser/' + userId);
+      //TODO ЗАГЛУШКА
+      //await axios.get(process.env.BOT_URL + '/deleteUser/' + userId);
     } catch (e) {
       console.error(e);
       return;
@@ -300,19 +299,19 @@ export class FormsService {
   async checkNewRequests() {
     const newForms = await this.newFormsRepository.findAll({
       where: {
-        status: 'filled',
+        status: "filled",
       },
     });
 
     await this.newFormsRepository.update(
       {
-        status: 'waiting',
+        status: "waiting",
       },
       {
         where: {
-          status: 'filled',
+          status: "filled",
         },
-      },
+      }
     );
 
     return newForms;
@@ -322,7 +321,7 @@ export class FormsService {
     const res = await this.newFormsRepository.findOne({
       where: {
         userId,
-        status: 'created',
+        status: "created",
       },
     });
 
@@ -330,7 +329,7 @@ export class FormsService {
   }
 
   async userFilledNewForm(formInfo: AppFormDTO) {
-    const form = { ...formInfo, status: 'filled' };
+    const form = { ...formInfo, status: "filled" };
 
     await this.newFormsRepository.update(
       {
@@ -339,18 +338,18 @@ export class FormsService {
       {
         where: {
           userId: String(formInfo.userId),
-          status: 'created',
+          status: "created",
         },
-      },
+      }
     );
 
     const chats = await this.chatsService.getChats();
     for (const chat of chats) {
-      const res = await this.chatsService.checkMembership(
+      const res = await this.chatsService.checkUserMembership(
         chat,
-        formInfo.userId,
+        formInfo.userId
       );
-      if (String(res) === 'true')
+      if (String(res) === "true")
         await this.chatsService.setGroupToUser(formInfo.userId, chat);
     }
   }
@@ -359,7 +358,7 @@ export class FormsService {
     const form = await this.newFormsRepository.findOne({
       where: {
         userId,
-        status: 'waiting',
+        status: "waiting",
       },
     });
 
@@ -395,7 +394,7 @@ export class FormsService {
   async getChangedFormsIds() {
     const forms = await this.formRepository.findAll({
       where: {
-        status: 'waiting',
+        status: "waiting",
       },
     });
 
@@ -430,7 +429,7 @@ export class FormsService {
       });
     }
 
-    const form = { ...formInfo, status: 'main' };
+    const form = { ...formInfo, status: "main" };
 
     await this.formRepository.update(form, {
       where: {
@@ -450,7 +449,7 @@ export class FormsService {
     if (!data) return;
     const { status, searchAvailability, ...newPrev } = data;
     await this.prevFormsRepository.upsert(newPrev);
-    const updatedForm = { ...form, status: 'changed' };
+    const updatedForm = { ...form, status: "changed" };
     await this.formRepository.update(updatedForm, {
       where: {
         userId: form.userId,
@@ -462,21 +461,21 @@ export class FormsService {
   async checkNewFormsChanges() {
     const res = await this.formRepository.findAll({
       where: {
-        status: 'changed',
+        status: "changed",
       },
     });
 
     for (const form of res) {
       await this.formRepository.update(
         {
-          status: 'waiting',
+          status: "waiting",
         },
         {
           where: {
             userId: form.userId,
-            status: 'changed',
+            status: "changed",
           },
-        },
+        }
       );
     }
     return !!res.length;
@@ -500,7 +499,7 @@ export class FormsService {
 
     await this.formRepository.create({
       ...form?.dataValues,
-      status: 'main',
+      status: "main",
       searchAvailability: true,
       isUserStarted: true,
     });

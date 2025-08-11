@@ -1,9 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/sequelize';
-import { Form } from '../forms/models/form.model';
-import { Op } from 'sequelize';
-import axios from 'axios';
-import * as process from 'node:process';
+import { Injectable } from "@nestjs/common";
+import { InjectModel } from "@nestjs/sequelize";
+import { Form } from "../forms/models/form.model";
+import { Op } from "sequelize";
 
 @Injectable()
 export class SearchService {
@@ -159,10 +157,12 @@ export class SearchService {
   }
 
   async adminVectorSearch(query: string) {
-    const resp = await axios.post(
-      process.env.VECTOR_SEARCH_URL + '/search/allFields',
-      { query },
-    );
-    return resp.data;
+    //TODO ЗАГЛУШКА
+    // const resp = await axios.post(
+    //   process.env.VECTOR_SEARCH_URL + '/search/allFields',
+    //   { query },
+    // );
+    // return resp.data;
+    return null;
   }
 }

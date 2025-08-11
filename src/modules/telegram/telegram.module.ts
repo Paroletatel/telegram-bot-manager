@@ -1,74 +1,57 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { SequelizeModule } from '@nestjs/sequelize';
 import { ConfigModule } from '@nestjs/config';
-import { ScheduleModule } from '@nestjs/schedule';
-
-// Основные сервисы
 import { MasterBotService } from './master-bot/master-bot.service';
 import { WorkerBotService } from './worker-bot/worker-bot.service';
-import { BotManagerService } from './services/bot-manager.service';
-import { MembershipService } from './services/membership.service';
-import { MessageProcessorService } from './services/message-processor.service';
-import { StateService } from './services/state.service';
-import { GroupService } from './services/group.service';
-import { RegistrationService } from './services/registration.service';
-import { KeyboardService } from './services/keyboard.service';
-import { StatusCheckerService } from './services/status-checker.service';
-import { TelegramInitService } from './services/telegram-init.service';
 
-// Контроллеры
-import { TelegramApiController } from './controllers/telegram-api.controller';
+// СЕРВИСЫ для worker-bot
+import { StateService } from './worker-bot/services/state.service';
+import { NavigationService } from './worker-bot/services/navigation.service';
+import { MessageService } from './worker-bot/services/message.service';
+import { CallbackService } from './worker-bot/services/callback.service';
+import { GroupChatService } from './worker-bot/services/group-chat.service';
+import { StatusCheckerService } from './worker-bot/services/status-checker.service';
+import { MembershipService } from './worker-bot/services/membership.service'; // ДОБАВИЛИ
 
-// Внешние модули
-import { DatabaseModule } from '../database/database.module';
-import { AuthModule } from '../auth/auth.module';
+// Импорты других модулей
+import { TelegramBot as TelegramBotModel } from '@/models/telegram-bot.model';
 import { UsersModule } from '../users/users.module';
-import { RolesModule } from '../modules/roles/roles.module';
-import { JwtAuthService } from '../auth/jwt.service';
+import { RolesModule } from '../roles/roles.module';
+import { AuthModule } from '../auth/auth.module';
+import { States } from '@/models/states.model';
+import { MembershipController } from './controllers/membership.controller';
+
 
 @Module({
   imports: [
     ConfigModule,
-    ScheduleModule.forRoot(), // Для периодических задач (StatusCheckerService)
-    DatabaseModule,
-    AuthModule,
+    SequelizeModule.forFeature([TelegramBotModel, States]),
     forwardRef(() => UsersModule),
-    forwardRef(() => RolesModule)
+    forwardRef(() => RolesModule),
+    forwardRef(() => AuthModule),
+    MembershipController,
   ],
-  controllers: [TelegramApiController],
   providers: [
-    // Основные сервисы ботов
     MasterBotService,
     WorkerBotService,
-    
-    // Сервисы управления
-    BotManagerService,
-    MessageProcessorService,
-    TelegramInitService,
-    
-    // Функциональные сервисы
-    MembershipService,
     StateService,
-    GroupService,
-    RegistrationService,
-    KeyboardService,
+    NavigationService,
+    MessageService,
+    CallbackService,
+    GroupChatService,
     StatusCheckerService,
-    
-    // JWT сервис
-    JwtAuthService
+    MembershipService, // ДОБАВИЛИ
   ],
   exports: [
-    // Экспортируем основные сервисы для использования в других модулях
     MasterBotService,
     WorkerBotService,
-    BotManagerService,
-    MembershipService,
-    MessageProcessorService,
     StateService,
-    GroupService,
-    RegistrationService,
+    NavigationService,
+    MessageService,
+    CallbackService,
+    GroupChatService,
     StatusCheckerService,
-    TelegramInitService,
-    JwtAuthService
-  ],
+    MembershipService, // ДОБАВИЛИ
+  ]
 })
 export class TelegramModule {}
