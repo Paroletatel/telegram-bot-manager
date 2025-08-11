@@ -58,9 +58,15 @@ export class RoleBot extends Model {
 
   @ForeignKey(() => RoleType)
   @Column({
-    type: DataType.ENUM(...Object.values(RoleTypeEnum)),
+    type: DataType.STRING,
     allowNull: false,
-    field: 'role_type_code'
+    field: 'role_type_code',
+    references: {
+      model: 'role_types',
+      key: 'code'
+    },
+    onUpdate: 'CASCADE',
+    onDelete: 'CASCADE'
   })
   roleTypeCode!: RoleTypeEnum;
 

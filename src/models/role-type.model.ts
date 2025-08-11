@@ -12,7 +12,7 @@ import { TelegramBot } from './telegram-bot.model';
 export class RoleType extends Model {
   @PrimaryKey
   @Column({
-    type: DataType.ENUM(...Object.values(RoleTypeEnum)),
+    type: DataType.STRING,
     field: 'code'
   })
   code!: RoleTypeEnum;

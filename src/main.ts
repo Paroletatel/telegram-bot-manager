@@ -3,10 +3,25 @@ import { AppModule } from './app.module';
 import { MasterBotService } from './modules/telegram/master-bot/master-bot.service';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { Sequelize } from 'sequelize-typescript';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 3000;
+
+  // Синхронизация моделей с базой данных в режиме разработки
+  if (process.env.NODE_ENV === 'development') {
+    const sequelize = app.get(Sequelize);
+    try {
+      await sequelize.sync({ 
+        alter: true, // изменяет существующие таблицы
+        logging: console.log // показывает SQL запросы
+      });
+      console.log('База данных синхронизирована с моделями');
+    } catch (error) {
+      console.error('Ошибка синхронизации базы данных:', error);
+    }
+  }
 
   // Enable CORS
   const allowedOrigins = [
