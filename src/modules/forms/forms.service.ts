@@ -25,6 +25,7 @@ export class FormsService {
     @InjectModel(Contact)
     private contactsRepository: typeof Contact
   ) {}
+
   async continueRegistration(userId: string) {
     await this.settingsRepository.create({
       userId: userId,

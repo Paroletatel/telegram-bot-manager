@@ -7,7 +7,6 @@ import { TelegramBot as TelegramBotModel } from "../../../models/telegram-bot.mo
 import { WorkerBotService } from "../worker-bot/worker-bot.service";
 import { JwtAuthService } from "../../auth/jwt.service";
 import { ConfigService } from "@nestjs/config";
-// Удален импорт RoleTypeEnum, так как функционал смены ролей перенесен в рабочие боты
 
 @Injectable()
 export class MasterBotService {

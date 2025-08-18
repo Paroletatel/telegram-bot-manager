@@ -9,8 +9,8 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 3000;
 
-  // Синхронизация моделей с базой данных в режиме разработки
-  if (process.env.NODE_ENV === 'development') {
+  // Синхронизация моделей с базой данных в режиме разработки - пока отключено
+  if (false && process.env.NODE_ENV === 'development') {
     const sequelize = app.get(Sequelize);
     try {
       await sequelize.sync({ 
