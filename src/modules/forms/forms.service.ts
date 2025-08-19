@@ -519,4 +519,47 @@ export class FormsService {
     });
     return !!user;
   }
+
+  // ================= Admin Drafts (server-side autosave) =================
+  /**
+   * Создать/обновить черновик админской формы. В качестве draftId используем uuid в поле userId таблицы NewForm.
+   * Статус: 'admin_draft'.
+   */
+  async upsertAdminDraft(formInfo: AppFormDTO, draftId?: string) {
+    const id = draftId || uuidv4();
+    const payload = {
+      ...formInfo,
+      userId: id,
+      status: 'admin_draft',
+    } as any;
+
+    // upsert: если есть — обновим, иначе создадим
+    const existing = await this.newFormsRepository.findOne({
+      where: { userId: id, status: 'admin_draft' },
+    });
+
+    if (existing) {
+      await this.newFormsRepository.update(payload, {
+        where: { userId: id, status: 'admin_draft' },
+      });
+    } else {
+      await this.newFormsRepository.create(payload);
+    }
+
+    return { draftId: id };
+  }
+
+  async getAdminDraft(draftId: string) {
+    const draft = await this.newFormsRepository.findOne({
+      where: { userId: draftId, status: 'admin_draft' },
+    });
+    return draft;
+  }
+
+  async deleteAdminDraft(draftId: string) {
+    await this.newFormsRepository.destroy({
+      where: { userId: draftId, status: 'admin_draft' },
+    });
+    return { ok: true };
+  }
 }

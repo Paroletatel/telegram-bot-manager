@@ -1,7 +1,11 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Logger } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { UsersService } from '../users/users.service';
+import { JwtAuthService, JwtPayload } from './jwt.service';
+import { ConfigService } from '@nestjs/config';
+import { parse, validate } from '@telegram-apps/init-data-node';
+import { RolesService } from '../roles/roles.service';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -10,8 +14,79 @@ export class AuthController {
 
   constructor(
     private readonly usersService: UsersService,
+    private readonly jwtAuthService: JwtAuthService,
+    private readonly configService: ConfigService,
+    private readonly rolesService: RolesService,
   ) {
     this.logger.log('AuthController инициализирован');
+  }
+
+  @Post()
+  @ApiOperation({ summary: 'Authenticate via Telegram initData' })
+  @ApiResponse({ status: 200, description: 'Authenticated successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid initData' })
+  async authenticate(@Body() body: { initDataRaw: string }) {
+    this.logger.log('Вызван эндпоинт /auth (Telegram initData)');
+
+    const { initDataRaw } = body || {} as any;
+    if (!initDataRaw) {
+      throw new BadRequestException('initDataRaw is required');
+    }
+
+    const botToken = this.configService.get<string>('WORKER_BOT_TOKEN');
+    if (!botToken) {
+      throw new BadRequestException('WORKER_BOT_TOKEN is not configured');
+    }
+
+    try {
+      // validate бросает исключение при невалидной подписи
+      validate(initDataRaw, botToken);
+
+      const parsed = parse(initDataRaw);
+      const tgUser = parsed.user;
+      if (!tgUser || !tgUser.id) {
+        throw new BadRequestException('initData.user is missing');
+      }
+
+      // 1) Создаём/находим пользователя в БД по telegramId
+      const dbUser = await this.usersService.findOrCreate(String(tgUser.id), {
+        username: tgUser.username || `${tgUser.first_name || 'tg'}_${tgUser.id}`,
+        firstName: tgUser.first_name || ''
+      });
+
+      // 2) Определяем «глобальную» роль пользователя (ADMIN если есть хотя бы одна admin-запись)
+      const globalRole = await this.rolesService.getUserGlobalRole(dbUser.id);
+
+      // 3) Формируем JWT payload: кладём во "sub" внутренний UUID пользователя
+      const payload: JwtPayload = {
+        sub: String(dbUser.id),
+        username: dbUser.username || (tgUser.username || `${tgUser.first_name || 'tg'}_${tgUser.id}`),
+        role: globalRole as any,
+      };
+
+      const accessToken = await this.jwtAuthService.generateAccessToken(payload);
+      const refreshToken = await this.jwtAuthService.generateRefreshToken({
+        sub: payload.sub,
+        username: payload.username,
+        role: payload.role,
+      });
+
+      return {
+        accessToken,
+        refreshToken,
+        user: {
+          id: payload.sub,
+          username: payload.username,
+          role: payload.role,
+        },
+      };
+    } catch (error) {
+      this.logger.error('Ошибка аутентификации через Telegram initData:', error);
+      if (error instanceof BadRequestException || error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Failed to authenticate');
+    }
   }
 
   @Get('me')
@@ -41,11 +116,11 @@ export class AuthController {
         user = null;
       }
 
-      // Возвращаем данные из JWT токена (они актуальные)
+      // Возвращаем данные из JWT токена и/или БД
       const result = {
         user: {
           id: userId,
-          username: username,
+          username: user?.username || username,
           email: `${userId}@telegram`,
           role: role, // Роль из JWT токена (самая актуальная)
           isActive: true,
@@ -68,8 +143,34 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
   async refreshToken(@Body() body: { refreshToken: string }) {
-    // Пока что возвращаем ошибку, так как refresh token логика не реализована
-    throw new Error('Refresh token functionality not implemented');
+    this.logger.log('Вызван эндпоинт /auth/refresh');
+    const { refreshToken } = body || {} as any;
+    if (!refreshToken) {
+      throw new BadRequestException('refreshToken is required');
+    }
+
+    const decoded = await this.jwtAuthService.verifyRefreshToken(refreshToken);
+    if (!decoded) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const payload: JwtPayload = {
+      sub: String(decoded.sub),
+      username: decoded.username,
+      role: decoded.role as any,
+    };
+
+    const accessToken = await this.jwtAuthService.generateAccessToken(payload);
+    const newRefreshToken = await this.jwtAuthService.generateRefreshToken({
+      sub: payload.sub,
+      username: payload.username,
+      role: payload.role,
+    });
+
+    return {
+      accessToken,
+      refreshToken: newRefreshToken,
+    };
   }
 
   @Post('logout')

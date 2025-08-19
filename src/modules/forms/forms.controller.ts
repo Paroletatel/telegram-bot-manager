@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { FormsService } from './forms.service';
 import { AppFormDTO } from './app-form.dto';
 
@@ -118,5 +118,22 @@ export class FormsController {
   @Get('/isUserAuth/:userId')
   isUserAuth(@Param('userId') userId: string) {
     return this.formsService.isUserAuth(userId);
+  }
+
+  // ================= Admin Drafts (server-side autosave) =================
+  @Post('/adminDraft/upsert')
+  upsertAdminDraft(@Body() payload: { draftId?: string; form: AppFormDTO }) {
+    const { draftId, form } = payload;
+    return this.formsService.upsertAdminDraft(form, draftId);
+  }
+
+  @Get('/adminDraft/:draftId')
+  getAdminDraft(@Param('draftId') draftId: string) {
+    return this.formsService.getAdminDraft(draftId);
+  }
+
+  @Delete('/adminDraft/:draftId')
+  deleteAdminDraft(@Param('draftId') draftId: string) {
+    return this.formsService.deleteAdminDraft(draftId);
   }
 }

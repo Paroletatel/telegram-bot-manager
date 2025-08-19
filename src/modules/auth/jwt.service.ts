@@ -38,8 +38,31 @@ export class JwtAuthService {
       ...(botId && { botId }),
     };
 
+    const tokenTtl = (this.configService.get<string>('JWT_EXPIRES_IN', '1h') || '1h').trim();
     return this.jwtService.signAsync(payload, {
-      expiresIn: this.configService.get<string>('JWT_EXPIRES_IN', '1h'),
+      expiresIn: tokenTtl,
+      secret: this.configService.get<string>('JWT_SECRET'),
+    });
+  }
+
+  /**
+   * Генерация access-токена с основным TTL
+   */
+  async generateAccessToken(payload: JwtPayload): Promise<string> {
+    const accessTtl = (this.configService.get<string>('JWT_EXPIRES_IN', '10m') || '10m').trim();
+    return this.jwtService.signAsync(payload, {
+      expiresIn: accessTtl,
+      secret: this.configService.get<string>('JWT_SECRET'),
+    });
+  }
+
+  /**
+   * Генерация refresh-токена с увеличенным TTL
+   */
+  async generateRefreshToken(payload: Pick<JwtPayload, 'sub' | 'username' | 'role'>): Promise<string> {
+    const refreshTtl = (this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d') || '7d').trim();
+    return this.jwtService.signAsync(payload, {
+      expiresIn: refreshTtl,
       secret: this.configService.get<string>('JWT_SECRET'),
     });
   }
@@ -54,6 +77,19 @@ export class JwtAuthService {
       return await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Проверка refresh-токена
+   */
+  async verifyRefreshToken(token: string): Promise<(Pick<JwtPayload, 'sub' | 'username' | 'role'> & { exp: number }) | null> {
+    try {
+      return await this.jwtService.verifyAsync(token, {
+        secret: this.configService.get<string>('JWT_SECRET'),
+      }) as any;
     } catch (error) {
       return null;
     }

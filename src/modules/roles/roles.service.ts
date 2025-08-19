@@ -35,6 +35,28 @@ export class RolesService implements OnModuleInit {
     await this.initializeRoles();
   }
 
+  /**
+   * Возвращает «глобальную» роль пользователя.
+   * Если у пользователя есть хотя бы одна ADMIN роль в любой связке с ботом — считаем ADMIN,
+   * иначе — USER. Удобно для веб‑приложения, где нет контекста конкретного бота.
+   */
+  async getUserGlobalRole(userId: string): Promise<RoleTypeEnum> {
+    const roleBot = await this.roleBotModel.findOne({
+      where: { userId },
+      include: [RoleType]
+    });
+
+    if (!roleBot) return RoleTypeEnum.USER;
+
+    // Быстрая проверка: если есть хотя бы одна запись ADMIN — вернуть ADMIN
+    const anyAdmin = await this.roleBotModel.findOne({
+      where: { userId },
+      include: [{ model: RoleType, as: 'roleType', where: { code: RoleTypeEnum.ADMIN } }]
+    });
+
+    return anyAdmin ? RoleTypeEnum.ADMIN : RoleTypeEnum.USER;
+  }
+
   private async initializeRoles() {
     const roles = [
       {
