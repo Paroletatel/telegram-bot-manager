@@ -1,5 +1,6 @@
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards, Request, Query } from '@nestjs/common';
 import { UsersChatsService } from './users-chats.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('usersChats')
 export class UsersChatsController {
@@ -26,6 +27,14 @@ export class UsersChatsController {
   @Get('/getChatsWithNames')
   getChatsWithNames() {
     return this.usersChatsService.getChatsWithNames();
+  }
+
+  @Get('/availableForUser')
+  @UseGuards(JwtAuthGuard)
+  async getAvailableForUser(@Request() req: any, @Query('verify') verify?: string) {
+    const userId = req.user?.id as string;
+    const verifyMembership = String(verify).toLowerCase() === 'true';
+    return this.usersChatsService.getAvailableForUser(String(userId), { verifyMembership });
   }
 
   @Post('/usersChat')

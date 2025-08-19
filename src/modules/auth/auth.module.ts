@@ -8,12 +8,15 @@ import { JwtAuthService } from './jwt.service';
 import { AuthController } from './auth.controller';
 import { UsersModule } from '../users/users.module';
 import { RolesModule } from '../roles/roles.module';
+import { SequelizeModule } from '@nestjs/sequelize';
+import { Bot } from '../users-chats/bots.model';
 
 @Module({
   imports: [
     UsersModule,
     RolesModule,
     ConfigModule,
+    SequelizeModule.forFeature([Bot]),
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

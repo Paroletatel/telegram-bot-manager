@@ -6,6 +6,8 @@ import { JwtAuthService, JwtPayload } from './jwt.service';
 import { ConfigService } from '@nestjs/config';
 import { parse, validate } from '@telegram-apps/init-data-node';
 import { RolesService } from '../roles/roles.service';
+import { InjectModel } from '@nestjs/sequelize';
+import { Bot } from '../users-chats/bots.model';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -17,6 +19,7 @@ export class AuthController {
     private readonly jwtAuthService: JwtAuthService,
     private readonly configService: ConfigService,
     private readonly rolesService: RolesService,
+    @InjectModel(Bot) private readonly botRepository: typeof Bot,
   ) {
     this.logger.log('AuthController инициализирован');
   }
@@ -33,14 +36,50 @@ export class AuthController {
       throw new BadRequestException('initDataRaw is required');
     }
 
-    const botToken = this.configService.get<string>('WORKER_BOT_TOKEN');
-    if (!botToken) {
-      throw new BadRequestException('WORKER_BOT_TOKEN is not configured');
+    // 0) Пытаемся получить активные токены ботов из БД
+    let dbTokens: string[] = [];
+    try {
+      const bots = await this.botRepository.findAll({ where: { status: 'active' } as any });
+      dbTokens = bots.map((b) => b.token).filter(Boolean);
+    } catch (e) {
+      // Таблица может отсутствовать — это ок для одноботовского режима
+      this.logger.debug('AuthController: пропускаю чтение токенов из БД (возможно, нет таблицы bots)');
+    }
+
+    // 1) Фолбэк на .env
+    const primaryToken = this.configService.get<string>('WORKER_BOT_TOKEN')
+      || this.configService.get<string>('BOT_TOKEN');
+    const extraTokensCsv = this.configService.get<string>('MULTI_BOT_TOKENS') || '';
+    const extraTokens = extraTokensCsv
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => !!s);
+
+    // Приоритет: БД → .env
+    const tokensToTry = [...dbTokens, primaryToken, ...extraTokens].filter((t): t is string => !!t);
+    if (!tokensToTry.length) {
+      throw new BadRequestException('No bot tokens configured (DB and .env are empty)');
     }
 
     try {
       // validate бросает исключение при невалидной подписи
-      validate(initDataRaw, botToken);
+      // Поддержка мульти-ботов: пробуем валидировать по каждому доступному токену
+      let validated = false;
+      let lastError: unknown = null;
+      for (const token of tokensToTry) {
+        try {
+          validate(initDataRaw, token);
+          validated = true;
+          break;
+        } catch (e) {
+          lastError = e;
+          // продолжаем пробовать следующие токены
+        }
+      }
+      if (!validated) {
+        // если ни один токен не подошёл — выбрасываем последнюю ошибку валидации
+        throw lastError || new UnauthorizedException('Invalid initData signature');
+      }
 
       const parsed = parse(initDataRaw);
       const tgUser = parsed.user;
@@ -99,9 +138,10 @@ export class AuthController {
     this.logger.log('Вызван эндпоинт /auth/me');
     
     try {
-      const userId = req.user.sub;
-      const role = req.user.role || 'user';
-      const username = req.user.username || 'unknown';
+      // JwtStrategy.validate возвращает объект вида { id: payload.sub, username, role, ... }
+      const userId = req.user?.id;
+      const role = req.user?.role || 'user';
+      const username = req.user?.username || 'unknown';
       
       this.logger.log(`Получены данные из JWT: userId=${userId}, role=${role}, username=${username}`);
       

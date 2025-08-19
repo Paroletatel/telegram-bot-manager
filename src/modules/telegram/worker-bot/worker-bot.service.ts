@@ -12,6 +12,7 @@ import { UsersService } from '../../users/users.service';
 import { RolesService, RoleTypeEnum } from '../../roles/roles.service';
 import { JwtAuthService } from '../../auth/jwt.service';
 import { ConfigService } from '@nestjs/config';
+import { UsersChatsService } from '../../users-chats/users-chats.service';
 
 @Injectable()
 export class WorkerBotService {
@@ -33,6 +34,7 @@ export class WorkerBotService {
     private readonly messageService: MessageService,
     private readonly callbackService: CallbackService,
     private readonly groupChatService: GroupChatService,
+    private readonly usersChatsService: UsersChatsService,
   ) {
     this.logger.log('WorkerBotService инициализирован');
     this.webAppUrl = this.configService.get<string>('WEB_APP_URL', 'http://localhost:3001');
@@ -52,7 +54,7 @@ export class WorkerBotService {
       polling: {
         interval: 2000, // Интервал опроса в миллисекундах
         params: {
-          timeout: 30, // Время долгого опроса Telegram API в секундах
+          timeout: 30 // Время долгого опроса Telegram API в секундах
         },
         autoStart: true,
       },
@@ -67,11 +69,18 @@ export class WorkerBotService {
 
   private async handleUserMessage(bot: TelegramBot, msg: TelegramBot.Message, botId: string) {
     if (!msg.from) return;
+    try {
+      const chatTypeInfo = msg.chat?.type || 'unknown';
+      const chatIdInfo = msg.chat?.id !== undefined ? String(msg.chat.id) : 'unknown';
+      const fromIdInfo = String(msg.from.id);
+      const textLen = msg.text ? msg.text.length : 0;
+      this.logger.debug(`handleUserMessage: chatType=${chatTypeInfo}, chatId=${chatIdInfo}, fromId=${fromIdInfo}, textLen=${textLen}, botId=${botId}`);
+    } catch {}
     
     try {
       const chatId = msg.chat.id.toString();
       const text = msg.text;
-  
+
       // НОВОЕ: Обработка групповых сообщений
       if (msg.chat.type === 'group' || msg.chat.type === 'supergroup') {
         return await this.groupChatService.processGroupMessage(
@@ -580,11 +589,15 @@ export class WorkerBotService {
       }
       
       // Создаем экземпляр бота с настройками
+      const baseOptions = this.createBotOptions();
       const bot = new TelegramBot(token, {
-        ...this.createBotOptions(),
+        ...baseOptions,
         polling: {
           interval: 300,
-          autoStart: false
+          autoStart: false,
+          params: {
+            timeout: 30
+          }
         }
       });
       
@@ -613,6 +626,53 @@ export class WorkerBotService {
         this.setupCallbacks(bot, botId);
         this.logger.log(`Обработчики команд и callback-запросов зарегистрированы для бота ${name}`);
 
+        // Обработка обновлений о смене статуса участника чата (в т.ч. добавление бота в группу)
+        bot.on('my_chat_member', async (update: TelegramBot.ChatMemberUpdated) => {
+          try {
+            const chat = update.chat;
+            const performer = update.from;
+            const oldStatus = (update.old_chat_member && (update.old_chat_member as any).status) || 'unknown';
+            const newStatus = (update.new_chat_member && (update.new_chat_member as any).status) || 'unknown';
+            this.logger.log(
+              `my_chat_member: chatType=${chat?.type}, chatId=${chat?.id}, title="${(chat as any)?.title || ''}", performerId=${performer?.id}, oldStatus=${oldStatus}, newStatus=${newStatus}`
+            );
+
+            // Регистрируем только group/supergroup
+            if (chat && (chat.type === 'group' || chat.type === 'supergroup')) {
+              const chatId = String(chat.id);
+              const chatTitle = (chat as any).title || '';
+              try {
+                await this.usersChatsService.addChat(chatId, chatTitle, botId);
+                this.logger.log(`Группа зарегистрирована через my_chat_member: ${chatId} (${chatTitle})`);
+              } catch (regErr) {
+                const err = regErr instanceof Error ? regErr.message : String(regErr);
+                this.logger.error(`Ошибка регистрации группы через my_chat_member chatId=${chatId}: ${err}`);
+              }
+            }
+          } catch (e) {
+            const err = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`Не удалось обработать my_chat_member: ${err}`);
+          }
+        });
+
+        // Дополнительный слушатель изменений участников (детализация вступлений/выходов не бота)
+        bot.on('chat_member', async (update: TelegramBot.ChatMemberUpdated) => {
+          try {
+            const chat = update.chat;
+            const user = update.new_chat_member?.user;
+            const oldStatus = (update.old_chat_member && (update.old_chat_member as any).status) || 'unknown';
+            const newStatus = (update.new_chat_member && (update.new_chat_member as any).status) || 'unknown';
+            this.logger.log(
+              `chat_member: chatType=${chat?.type}, chatId=${chat?.id}, title="${(chat as any)?.title || ''}", userId=${user?.id}, oldStatus=${oldStatus}, newStatus=${newStatus}`
+            );
+          } catch (e) {
+            const err = e instanceof Error ? e.message : String(e);
+            this.logger.warn(`Не удалось обработать chat_member: ${err}`);
+          }
+        });
+
+        // Диагностические обработчики для каналов/редактированных сообщений удалены
+
         // Обработчики ошибок
         bot.on('error', (error: Error) => {
           this.logger.error(`Ошибка бота ${name}: ${error.message}`);
@@ -637,6 +697,21 @@ export class WorkerBotService {
             }
           }, 5000);
         });
+
+        // Перед запуском polling проверим и отключим webhook, если он был настроен
+        try {
+          const whInfo = await bot.getWebHookInfo();
+          const whUrl = (whInfo as any)?.url || '';
+          if (whUrl) {
+            this.logger.warn(`Обнаружен активный webhook у бота ${name}: ${whUrl}. Удаляем webhook перед стартом polling...`);
+            await bot.deleteWebHook();
+            this.logger.log(`Webhook удалён для бота ${name}`);
+          } else {
+            this.logger.log(`Webhook не установлен у бота ${name}`);
+          }
+        } catch (whErr) {
+          this.logger.warn(`Не удалось получить/удалить webhook: ${whErr instanceof Error ? whErr.message : String(whErr)}`);
+        }
 
         // Запускаем опрос
         this.logger.log(`Начинаем запуск опроса для бота ${name}...`);

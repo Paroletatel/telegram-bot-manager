@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
 import { NavigationService } from './navigation.service';
-import { MembershipService } from './membership.service'; // ДОБАВИЛИ
+import { MembershipService } from './membership.service'; 
 import { ConfigService } from '@nestjs/config';
+import { UsersChatsService } from '../../../users-chats/users-chats.service';
+import { UsersService } from '../../../users/users.service';
 
 @Injectable()
 export class GroupChatService {
@@ -11,8 +13,10 @@ export class GroupChatService {
 
   constructor(
     private readonly navigationService: NavigationService,
-    private readonly membershipService: MembershipService, // ДОБАВИЛИ
+    private readonly membershipService: MembershipService, 
     private readonly configService: ConfigService,
+    private readonly usersChatsService: UsersChatsService,
+    private readonly usersService: UsersService,
   ) {
     this.loadGroups();
   }
@@ -36,8 +40,48 @@ export class GroupChatService {
     text: string
   ): Promise<void> {
     try {
+      const chatType = message.chat.type;
+      const chatTitle = message.chat.title || '';
+      this.logger.log(`processGroupMessage: chatType=${chatType}, groupId=${groupId}, userId=${userId}, title="${chatTitle}", textLen=${text?.length || 0}`);
+      if (!groupId) this.logger.warn('processGroupMessage: groupId is empty/undefined');
+      if (!userId) this.logger.warn('processGroupMessage: userId is empty/undefined');
+
+      // Гарантируем регистрацию группы в БД (idempotent)
+      try {
+        await this.usersChatsService.addChat(String(groupId), chatTitle);
+        this.logger.log(`processGroupMessage: addChat OK for ${groupId}`);
+      } catch (e) {
+        const err = e instanceof Error ? e.message : String(e);
+        this.logger.error(`processGroupMessage: addChat FAILED for ${groupId}: ${err}`);
+      }
+
+      // Фиксируем связь пользователь↔группа (idempotent внутри сервиса)
+      // ВАЖНО: сохраняем по внутреннему UUID пользователя, а не по Telegram ID
+      if (message.from) {
+        const tgId = String(userId);
+        const dbUser = await this.usersService.findOrCreate(tgId, {
+          username: message.from.username || `${message.from.first_name || 'tg'}_${message.from.id}`,
+          firstName: message.from.first_name || '',
+        });
+        try {
+          await this.usersChatsService.setGroupToUser(String(dbUser.id), String(groupId));
+          this.logger.log(`processGroupMessage: setGroupToUser OK userDbId=${dbUser.id} groupId=${groupId}`);
+        } catch (e) {
+          const err = e instanceof Error ? e.message : String(e);
+          this.logger.error(`processGroupMessage: setGroupToUser FAILED userDbId=${dbUser.id} groupId=${groupId}: ${err}`);
+        }
+      } else {
+        this.logger.warn('processGroupMessage: message.from is missing, cannot resolve user');
+      }
+
       // Проверка команды /group
-      if (text === '/group' && this.isGroupChat(message.chat.type)) {
+      // Принимаем варианты: /group, /group@botname и возможные аргументы
+      const isGroup = this.isGroupChat(message.chat.type);
+      const isGroupCmd = /^\/group(@\w+)?(?:\s|$)/.test(text || '');
+      if (isGroup || isGroupCmd) {
+        this.logger.log(`processGroupMessage: check /group match -> isGroup=${isGroup}, isGroupCmd=${isGroupCmd}, text="${(text || '').slice(0, 100)}"`);
+      }
+      if (isGroup && isGroupCmd) {
         return await this.handleGroupCommand(bot, message);
       }
 
@@ -50,7 +94,6 @@ export class GroupChatService {
       // TODO: Реализовать логику из groupChatWorker.js
       // Включая AI проверку сообщений и поиск контактов
       this.logger.log(`Group message from ${userId} in ${groupId}: ${text}`);
-
     } catch (error) {
       this.logger.error('Error processing group message:', error);
     }
@@ -64,6 +107,7 @@ export class GroupChatService {
     if (message.from) {
       try {
         // ИСПОЛЬЗУЕМ MembershipService
+        this.logger.log(`handleGroupCommand: start admin check for userId=${message.from.id} in chatId=${message.chat.id}`);
         const isAdmin = await this.membershipService.checkAdminMembership(
           bot, 
           message.chat.id, 
@@ -71,6 +115,7 @@ export class GroupChatService {
         );
         
         if (isAdmin) {
+          this.logger.log(`handleGroupCommand: admin confirmed, sending groupId to user ${message.from.id}`);
           await bot.sendMessage(
             message.from.id,
             `ID группы: \`${message.chat.id}\`\n\nИспользуйте этот ID для добавления группы в систему.`,
@@ -88,10 +133,17 @@ export class GroupChatService {
   private async handleNewChatMembers(bot: TelegramBot, message: TelegramBot.Message): Promise<void> {
     if (message.new_chat_members) {
       for (const newMember of message.new_chat_members) {
-        this.logger.log(`New member ${newMember.first_name} joined group ${message.chat.id}`);
-        
-        // TODO: Реализовать логику приветствия новых участников
-        // из оригинального кода, если она была
+        // Если добавлен сам бот — регистрируем группу
+        try {
+          const me = await bot.getMe();
+          if (newMember.id === me.id && this.isGroupChat(message.chat.type)) {
+            const chatTitle = message.chat.title || '';
+            await this.usersChatsService.addChat(String(message.chat.id), chatTitle);
+            this.logger.log(`Группа зарегистрирована (my_chat_member/new_chat_members): ${message.chat.id} (${chatTitle})`);
+          }
+        } catch (e) {
+          this.logger.warn(`Не удалось обработать new_chat_members: ${e instanceof Error ? e.message : e}`);
+        }
       }
     }
   }

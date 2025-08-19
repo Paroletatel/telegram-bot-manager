@@ -20,6 +20,7 @@ import { RolesModule } from '../roles/roles.module';
 import { AuthModule } from '../auth/auth.module';
 import { States } from '../../models/states.model';
 import { MembershipController } from './controllers/membership.controller';
+import { UsersChatsModule } from '../users-chats/users-chats.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { MembershipController } from './controllers/membership.controller';
     forwardRef(() => UsersModule),
     forwardRef(() => RolesModule),
     forwardRef(() => AuthModule),
+    forwardRef(() => UsersChatsModule),
   ],
   controllers: [
     MembershipController,
