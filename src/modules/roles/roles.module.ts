@@ -6,6 +6,7 @@ import { User } from '../../models/user.model';
 import { TelegramBot } from '../../models/telegram-bot.model';
 import { RolesService } from './roles.service';
 import { RolesController } from './roles.controller';
+import { RolesGuard } from './roles.guard';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtStrategy } from '../auth/jwt.strategy';
@@ -37,6 +38,7 @@ import { PassportModule } from '@nestjs/passport';
     RolesService,
     JwtStrategy,
     JwtAuthService,
+    RolesGuard,
     {
       provide: 'JWT_SERVICE',
       useClass: JwtService,
@@ -47,6 +49,7 @@ import { PassportModule } from '@nestjs/passport';
     JwtModule,
     PassportModule,
     JwtAuthService,
+    RolesGuard,
   ]
 })
 export class RolesModule {}

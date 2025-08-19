@@ -1,17 +1,18 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ROLES_KEY } from './roles.decorator';
-import { RoleTypeEnum } from './roles.service';
-import { JwtService } from '@nestjs/jwt';
+import { RoleTypeEnum, RolesService } from './roles.service';
+import { JwtAuthService } from '../auth/jwt.service';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(
     private reflector: Reflector,
-    private jwtService: JwtService,
+    private readonly jwtAuthService: JwtAuthService,
+    private readonly rolesService: RolesService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredRoles = this.reflector.getAllAndOverride<RoleTypeEnum[]>(ROLES_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -30,11 +31,22 @@ export class RolesGuard implements CanActivate {
     }
 
     try {
-      const payload = this.jwtService.verify(token);
-      const userRole = payload.role as RoleTypeEnum;
-      
-      // Check if user has any of the required roles
-      return requiredRoles.some((role) => userRole === role);
+      // Валидируем токен и извлекаем userId/botId
+      const payload = await this.jwtAuthService.verifyToken(token);
+      if (!payload) {
+        throw new ForbiddenException('Invalid token');
+      }
+
+      const userId = payload.sub;
+      const botId = (payload as any).botId as string | undefined;
+
+      // Определяем эффективную роль: бот-специфичная при наличии botId, иначе глобальная
+      const effectiveRole: RoleTypeEnum = botId
+        ? await this.rolesService.getUserRoleForBot(userId, botId)
+        : await this.rolesService.getUserGlobalRole(userId);
+
+      // Проверка наличия любой из требуемых ролей
+      return requiredRoles.some((role) => effectiveRole === role);
     } catch (error) {
       throw new ForbiddenException('Invalid token or insufficient permissions');
     }
