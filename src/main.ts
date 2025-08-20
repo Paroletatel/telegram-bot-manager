@@ -10,9 +10,10 @@ import { UsersChatsService } from "./modules/users-chats/users-chats.service";
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const port = process.env.PORT || 3000;
+  const isSyncDB = process.env.IS_SYNC_DB ?? false;
 
-  // Синхронизация моделей с базой данных в режиме разработки - пока отключено
-  if (true && process.env.NODE_ENV === "development") {
+  // Синхронизация моделей с базой данных в режиме разработки
+  if (isSyncDB && process.env.NODE_ENV === "development") {
     const sequelize = app.get(Sequelize);
     try {
       await sequelize.sync({

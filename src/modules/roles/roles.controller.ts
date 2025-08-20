@@ -1,23 +1,31 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Request, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { RolesService, RoleTypeEnum } from './roles.service';
+import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
 
 export class AssignRoleDto { 
-  constructor(
-    public userId: string,
-    public botId: string,
-    public role: RoleTypeEnum
-  ) {}
+  @IsString()
+  @IsNotEmpty()
+  userId!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  botId!: string;
+
+  @IsEnum(RoleTypeEnum)
+  role!: RoleTypeEnum;
 }
 
 export class SwitchRoleDto {
-  constructor(
-    public role: RoleTypeEnum,
-    public botId: string
-  ) {}
+  @IsEnum(RoleTypeEnum)
+  role!: RoleTypeEnum;
+
+  @IsString()
+  @IsNotEmpty()
+  botId!: string;
 }
 
 @ApiTags('roles')
@@ -89,7 +97,7 @@ export class RolesController {
     @Request() req: any
   ) {
     const { role, botId } = switchRoleDto;
-    const userId = req.user.userId;
+    const userId = req.user.id;
     
     // Проверяем, что роль валидна
     if (!Object.values(RoleTypeEnum).includes(role)) {

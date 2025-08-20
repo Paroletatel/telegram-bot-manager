@@ -140,10 +140,20 @@ export class AuthController {
     try {
       // JwtStrategy.validate возвращает объект вида { id: payload.sub, username, role, ... }
       const userId = req.user?.id;
-      const role = req.user?.role || 'user';
+      const roleFromJwt = req.user?.role || 'user';
       const username = req.user?.username || 'unknown';
       
-      this.logger.log(`Получены данные из JWT: userId=${userId}, role=${role}, username=${username}`);
+      this.logger.log(`Получены данные из JWT: userId=${userId}, role=${roleFromJwt}, username=${username}`);
+      
+      // Берём актуальную роль из БД (глобальная роль для веб‑приложения)
+      let actualRole = roleFromJwt;
+      try {
+        if (userId) {
+          actualRole = await this.rolesService.getUserGlobalRole(String(userId));
+        }
+      } catch (e) {
+        this.logger.warn('Не удалось получить актуальную роль из БД, используем роль из JWT');
+      }
       
       // Попробуем найти пользователя в БД
       let user;
@@ -162,7 +172,7 @@ export class AuthController {
           id: userId,
           username: user?.username || username,
           email: `${userId}@telegram`,
-          role: role, // Роль из JWT токена (самая актуальная)
+          role: actualRole, // Актуальная роль из БД (фолбэк на JWT)
           isActive: true,
           createdAt: user?.createdAt || new Date(),
           updatedAt: user?.updatedAt || new Date(),
@@ -194,10 +204,18 @@ export class AuthController {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
+    // Пересчитываем актуальную роль по БД, чтобы токены отражали изменения ролей
+    let latestRole = decoded.role as any;
+    try {
+      latestRole = await this.rolesService.getUserGlobalRole(String(decoded.sub));
+    } catch (e) {
+      this.logger.warn('Не удалось получить актуальную роль из БД в refresh, используем роль из refresh токена');
+    }
+
     const payload: JwtPayload = {
       sub: String(decoded.sub),
       username: decoded.username,
-      role: decoded.role as any,
+      role: latestRole as any,
     };
 
     const accessToken = await this.jwtAuthService.generateAccessToken(payload);
