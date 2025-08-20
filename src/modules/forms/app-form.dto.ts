@@ -3,6 +3,8 @@ import { ContactInterface } from './interfaces/contact.interface';
 
 export interface AppFormDTO {
   userId: string;
+  // Опциональный идентификатор бота для мультибот-изоляции
+  botId?: string;
   systemName: string;
   surname: string;
   surnameV: boolean;

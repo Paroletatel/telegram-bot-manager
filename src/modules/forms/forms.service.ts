@@ -87,7 +87,8 @@ export class FormsService {
 
     await this.formRepository.create({
       ...form,
-    });
+      // botId попадёт из formInfo при наличии
+    } as any);
 
     await this.newFormsRepository.destroy({
       where: {
@@ -146,19 +147,28 @@ export class FormsService {
     if (!formInfo) return;
     const form = { ...formInfo, status: "rejected" };
 
-    await this.newFormsRepository.update(form, {
-      where: {
-        userId: formInfo.userId,
-      },
-    });
+    try {
+      await this.newFormsRepository.update(form as any, {
+        where: {
+          userId: formInfo.userId,
+          ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
+        },
+      });
+    } catch (_) {
+      await this.newFormsRepository.update(form as any, {
+        where: { userId: formInfo.userId },
+      });
+    }
   }
 
-  async getNewFormsForApproveList() {
-    const newForms = await this.newFormsRepository.findAll({
-      where: {
-        status: "waiting",
-      },
-    });
+  async getNewFormsForApproveList(botId?: string) {
+    let newForms: NewForm[] = [];
+    try {
+      const where: any = botId !== undefined ? { status: "waiting", botId } : { status: "waiting" };
+      newForms = await this.newFormsRepository.findAll({ where });
+    } catch (_) {
+      newForms = await this.newFormsRepository.findAll({ where: { status: "waiting" } });
+    }
     const res = [];
     for (const formInf of newForms) {
       res.push({ userId: formInf.userId, systemName: formInf.systemName });
@@ -182,6 +192,7 @@ export class FormsService {
         {
           where: {
             userId: form.userId,
+            // без botId намеренно, для обратной совместимости перекидываем approved->main глобально
           },
         }
       );
@@ -189,19 +200,24 @@ export class FormsService {
     return res;
   }
 
-  async searchUser(value: string) {
+  async searchUser(value: string, botId?: string) {
     const fields = ["phoneNumber", "systemName", "INN", "city"];
     let forms: Form[] = [];
 
     for (const field of fields) {
-      const form = await this.formRepository.findAll({
-        where: {
-          [field]: {
-            [Op.iLike]: `%${value}%`,
-          },
-        },
-      });
-      Array.prototype.push.apply(forms, form);
+      try {
+        const where: any = {
+          [field]: { [Op.iLike]: `%${value}%` },
+          ...(botId !== undefined ? { botId } : {}),
+        };
+        const form = await this.formRepository.findAll({ where });
+        Array.prototype.push.apply(forms, form);
+      } catch (_) {
+        const form = await this.formRepository.findAll({
+          where: { [field]: { [Op.iLike]: `%${value}%` } },
+        });
+        Array.prototype.push.apply(forms, form);
+      }
     }
 
     forms = forms.filter(
@@ -224,12 +240,14 @@ export class FormsService {
     return res;
   }
 
-  async searchUserById(id: string) {
-    const form = await this.formRepository.findOne({
-      where: {
-        userId: id,
-      },
-    });
+  async searchUserById(id: string, botId?: string) {
+    let form: Form | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId: id, botId } : { userId: id };
+      form = await this.formRepository.findOne({ where });
+    } catch (_) {
+      form = await this.formRepository.findOne({ where: { userId: id } });
+    }
 
     const settings = await this.settingsRepository.findOne({
       where: {
@@ -318,13 +336,14 @@ export class FormsService {
     return newForms;
   }
 
-  async getFreshCreatedForm(userId: string) {
-    const res = await this.newFormsRepository.findOne({
-      where: {
-        userId,
-        status: "created",
-      },
-    });
+  async getFreshCreatedForm(userId: string, botId?: string) {
+    let res: NewForm | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId, status: "created", botId } : { userId, status: "created" };
+      res = await this.newFormsRepository.findOne({ where });
+    } catch (_) {
+      res = await this.newFormsRepository.findOne({ where: { userId, status: "created" } });
+    }
 
     return res;
   }
@@ -332,17 +351,25 @@ export class FormsService {
   async userFilledNewForm(formInfo: AppFormDTO) {
     const form = { ...formInfo, status: "filled" };
 
-    await this.newFormsRepository.update(
-      {
-        ...form,
-      },
-      {
-        where: {
-          userId: String(formInfo.userId),
-          status: "created",
-        },
-      }
-    );
+    try {
+      await this.newFormsRepository.update(
+        { ...(form as any) },
+        {
+          where: {
+            userId: String(formInfo.userId),
+            status: "created",
+            ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
+          },
+        }
+      );
+    } catch (_) {
+      await this.newFormsRepository.update(
+        { ...(form as any) },
+        {
+          where: { userId: String(formInfo.userId), status: "created" },
+        }
+      );
+    }
 
     const chats = await this.chatsService.getChats();
     for (const chat of chats) {
@@ -355,13 +382,14 @@ export class FormsService {
     }
   }
 
-  async getFirstFilledForm(userId: string) {
-    const form = await this.newFormsRepository.findOne({
-      where: {
-        userId,
-        status: "waiting",
-      },
-    });
+  async getFirstFilledForm(userId: string, botId?: string) {
+    let form: NewForm | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId, status: "waiting", botId } : { userId, status: "waiting" };
+      form = await this.newFormsRepository.findOne({ where });
+    } catch (_) {
+      form = await this.newFormsRepository.findOne({ where: { userId, status: "waiting" } });
+    }
 
     if (form) {
       const formObj = form.toJSON();
@@ -372,32 +400,38 @@ export class FormsService {
     return form;
   }
 
-  async getMainForm(userId: string) {
-    const form = await this.formRepository.findOne({
-      where: {
-        userId,
-      },
-    });
+  async getMainForm(userId: string, botId?: string) {
+    let form: Form | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId, botId } : { userId };
+      form = await this.formRepository.findOne({ where });
+    } catch (_) {
+      form = await this.formRepository.findOne({ where: { userId } });
+    }
     return form;
   }
 
-  async getMainFormWithChats(userId: string) {
-    const form = await this.formRepository.findOne({
-      where: {
-        userId,
-      },
-    });
+  async getMainFormWithChats(userId: string, botId?: string) {
+    let form: Form | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId, botId } : { userId };
+      form = await this.formRepository.findOne({ where });
+    } catch (_) {
+      form = await this.formRepository.findOne({ where: { userId } });
+    }
 
     const chats = await this.chatsService.getUsersChats(userId);
     return { ...form?.dataValues, chats };
   }
 
-  async getChangedFormsIds() {
-    const forms = await this.formRepository.findAll({
-      where: {
-        status: "waiting",
-      },
-    });
+  async getChangedFormsIds(botId?: string) {
+    let forms: Form[] = [];
+    try {
+      const where: any = botId !== undefined ? { status: "waiting", botId } : { status: "waiting" };
+      forms = await this.formRepository.findAll({ where });
+    } catch (_) {
+      forms = await this.formRepository.findAll({ where: { status: "waiting" } });
+    }
 
     const res = [];
     for (const form of forms) {
@@ -407,12 +441,14 @@ export class FormsService {
     return forms;
   }
 
-  async getPrevForm(userId: string) {
-    const form = await this.prevFormsRepository.findOne({
-      where: {
-        userId: userId,
-      },
-    });
+  async getPrevForm(userId: string, botId?: string) {
+    let form: FormPrev | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId: userId, botId } : { userId: userId };
+      form = await this.prevFormsRepository.findOne({ where });
+    } catch (_) {
+      form = await this.prevFormsRepository.findOne({ where: { userId: userId } });
+    }
     return form;
   }
 
@@ -432,11 +468,18 @@ export class FormsService {
 
     const form = { ...formInfo, status: "main" };
 
-    await this.formRepository.update(form, {
-      where: {
-        userId: form.userId,
-      },
-    });
+    try {
+      await this.formRepository.update(form as any, {
+        where: {
+          userId: form.userId,
+          ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
+        },
+      });
+    } catch (_) {
+      await this.formRepository.update(form as any, {
+        where: { userId: form.userId },
+      });
+    }
     return form;
   }
 
@@ -449,13 +492,20 @@ export class FormsService {
     const data = prev?.dataValues;
     if (!data) return;
     const { status, searchAvailability, ...newPrev } = data;
-    await this.prevFormsRepository.upsert(newPrev);
+    await this.prevFormsRepository.upsert(newPrev as any);
     const updatedForm = { ...form, status: "changed" };
-    await this.formRepository.update(updatedForm, {
-      where: {
-        userId: form.userId,
-      },
-    });
+    try {
+      await this.formRepository.update(updatedForm as any, {
+        where: {
+          userId: form.userId,
+          ...(form.botId !== undefined ? { botId: form.botId } : {}),
+        },
+      });
+    } catch (_) {
+      await this.formRepository.update(updatedForm as any, {
+        where: { userId: form.userId },
+      });
+    }
     return updatedForm;
   }
 
@@ -482,8 +532,17 @@ export class FormsService {
     return !!res.length;
   }
 
-  async getAllFormsList() {
-    const forms = await this.formRepository.findAll();
+  async getAllFormsList(botId?: string) {
+    let forms: Form[] = [];
+    try {
+      if (botId !== undefined) {
+        forms = await this.formRepository.findAll({ where: { botId } as any });
+      } else {
+        forms = await this.formRepository.findAll();
+      }
+    } catch (_) {
+      forms = await this.formRepository.findAll();
+    }
     const res = [];
     for (const form of forms) {
       res.push({ userId: form.userId, systemName: form.systemName });
@@ -503,7 +562,7 @@ export class FormsService {
       status: "main",
       searchAvailability: true,
       isUserStarted: true,
-    });
+    } as any);
     await this.newFormsRepository.destroy({
       where: {
         userId: userId,
@@ -511,12 +570,14 @@ export class FormsService {
     });
   }
 
-  async isUserAuth(userId: string) {
-    const user = await this.formRepository.findOne({
-      where: {
-        userId: userId,
-      },
-    });
+  async isUserAuth(userId: string, botId?: string) {
+    let user: Form | null = null;
+    try {
+      const where: any = botId !== undefined ? { userId: userId, botId } : { userId: userId };
+      user = await this.formRepository.findOne({ where });
+    } catch (_) {
+      user = await this.formRepository.findOne({ where: { userId: userId } });
+    }
     return !!user;
   }
 

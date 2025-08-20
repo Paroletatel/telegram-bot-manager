@@ -12,7 +12,7 @@ async function bootstrap() {
   const port = process.env.PORT || 3000;
 
   // Синхронизация моделей с базой данных в режиме разработки - пока отключено
-  if (false && process.env.NODE_ENV === "development") {
+  if (true && process.env.NODE_ENV === "development") {
     const sequelize = app.get(Sequelize);
     try {
       await sequelize.sync({

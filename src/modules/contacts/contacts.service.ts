@@ -10,29 +10,31 @@ export class ContactsService {
     @InjectModel(Form) private formRepository: typeof Form,
   ) {}
 
-  async addUserToContact(userId: string, contactUserId: string) {
-    const contact = await this.contactRepository.findAll({
-      where: {
-        userId,
-        contactUserId,
-      },
-    });
-    if (contact.length) return;
-    else {
-      await this.contactRepository.create({
-        userId,
-        contactUserId,
-      });
+  async addUserToContact(userId: string, contactUserId: string, botId?: string | null) {
+    // Пытаемся работать в новой схеме (userId, contactUserId, botId)
+    try {
+      const where: any = botId !== undefined ? { userId, contactUserId, botId } : { userId, contactUserId };
+      const existing = await this.contactRepository.findAll({ where });
+      if (existing.length) return;
+      await this.contactRepository.create({ userId, contactUserId, botId: botId ?? null } as any);
       return;
+    } catch (_) {
+      // Legacy fallback: без botId
+      const existing = await this.contactRepository.findAll({ where: { userId, contactUserId } });
+      if (existing.length) return;
+      await this.contactRepository.create({ userId, contactUserId } as any);
     }
   }
 
-  async getUsersContacts(userId: string) {
-    const contacts = await this.contactRepository.findAll({
-      where: {
-        userId,
-      },
-    });
+  async getUsersContacts(userId: string, botId?: string | null) {
+    let contacts: Contact[] = [];
+    try {
+      const where: any = botId !== undefined ? { userId, botId } : { userId };
+      contacts = await this.contactRepository.findAll({ where });
+    } catch (_) {
+      // Legacy fallback: без botId
+      contacts = await this.contactRepository.findAll({ where: { userId } });
+    }
 
     if (!contacts.length) return [];
 
@@ -43,19 +45,19 @@ export class ContactsService {
           userId: contact.contactUserId,
         },
       });
-
       contactNames.push({ systemName: info?.systemName, userId: info?.userId });
     }
 
     return contactNames;
   }
 
-  async deleteUserFromContact(userId: string, contactUserId: string) {
-    await this.contactRepository.destroy({
-      where: {
-        userId,
-        contactUserId,
-      },
-    });
+  async deleteUserFromContact(userId: string, contactUserId: string, botId?: string | null) {
+    try {
+      const where: any = botId !== undefined ? { userId, contactUserId, botId } : { userId, contactUserId };
+      await this.contactRepository.destroy({ where });
+    } catch (_) {
+      // Legacy fallback
+      await this.contactRepository.destroy({ where: { userId, contactUserId } });
+    }
   }
 }

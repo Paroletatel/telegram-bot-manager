@@ -1,38 +1,46 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { MessagesService } from './messages.service';
+import { CreateNewMessageDto } from './dto/create-new-message.dto';
+import { ChangeMessageStatusDto } from './dto/change-message-status.dto';
 
+@ApiTags('Messages')
 @Controller('messages')
 export class MessagesController {
   constructor(private messagesService: MessagesService) {}
 
   @Post('/createNewMessage')
-  createNewMessage(
-    @Body('fromUserId') fromUserId: string,
-    @Body('toUserId') toUserId: string,
-    @Body('text') text: string,
-  ) {
-    return this.messagesService.createNewMessage(fromUserId, toUserId, text);
+  @ApiOperation({ summary: 'Создать новое сообщение' })
+  @ApiBody({ type: CreateNewMessageDto })
+  createNewMessage(@Body() dto: CreateNewMessageDto) {
+    const { fromUserId, toUserId, text, botId } = dto;
+    return this.messagesService.createNewMessage(fromUserId, toUserId, text, botId);
   }
 
   @Get('/getNewMessages')
-  getNewMessages() {
-    return this.messagesService.getNewMessages();
+  @ApiOperation({ summary: 'Получить новые сообщения для отправки (фильтрация по доступности получателя)' })
+  @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  getNewMessages(@Query('botId') botId?: string) {
+    return this.messagesService.getNewMessages(botId);
   }
 
   @Post('/changeMessageStatus')
-  changeMessageStatus(
-    @Body('status') status: string,
-    @Body('messageId') messageId: number,
-  ) {
+  @ApiOperation({ summary: 'Изменить статус сообщения' })
+  @ApiBody({ type: ChangeMessageStatusDto })
+  changeMessageStatus(@Body() dto: ChangeMessageStatusDto) {
+    const { status, messageId } = dto;
     return this.messagesService.changeMessageStatus(status, messageId);
   }
 
   @Get('/getNewMessagesForUser/:userId')
-  getNewMessagesForUser(@Param('userId') userId: string) {
-    return this.messagesService.getNewMessagesForUser(userId);
+  @ApiOperation({ summary: 'Получить новые сообщения для пользователя' })
+  @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  getNewMessagesForUser(@Param('userId') userId: string, @Query('botId') botId?: string) {
+    return this.messagesService.getNewMessagesForUser(userId, botId);
   }
 
   @Get('/getMessageById/:messageId')
+  @ApiOperation({ summary: 'Получить сообщение по ID' })
   getMessageById(@Param('messageId') messageId: number) {
     return this.messagesService.getMessageById(messageId);
   }

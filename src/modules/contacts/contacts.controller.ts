@@ -1,28 +1,34 @@
-import { Body, Controller, Get, Param, Post } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query } from "@nestjs/common";
+import { ApiBody, ApiOperation, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { ContactsService } from './contacts.service';
+import { AddUserToContactDto } from './dto/add-user-to-contact.dto';
+import { DeleteUserFromContactDto } from './dto/delete-user-from-contact.dto';
 
+@ApiTags('Contacts')
 @Controller('contacts')
 export class ContactsController {
   constructor(private contactsService: ContactsService) {}
 
   @Post('/addUserToContact')
-  putValueInFormField(
-    @Body('userId') userId: string,
-    @Body('contactUserId') contactUserId: string,
-  ) {
-    return this.contactsService.addUserToContact(userId, contactUserId);
+  @ApiOperation({ summary: 'Добавить пользователя в контакты' })
+  @ApiBody({ type: AddUserToContactDto })
+  putValueInFormField(@Body() dto: AddUserToContactDto) {
+    const { userId, contactUserId, botId } = dto;
+    return this.contactsService.addUserToContact(userId, contactUserId, botId);
   }
 
   @Get('/getUsersContacts/:userId')
-  getUsersContacts(@Param('userId') userId: string) {
-    return this.contactsService.getUsersContacts(userId);
+  @ApiOperation({ summary: 'Получить контакты пользователя' })
+  @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  getUsersContacts(@Param('userId') userId: string, @Query('botId') botId?: string) {
+    return this.contactsService.getUsersContacts(userId, botId);
   }
 
   @Post('/deleteUserFromContact')
-  deleteUserFromContact(
-    @Body('userId') userId: string,
-    @Body('contactUserId') contactUserId: string,
-  ) {
-    return this.contactsService.deleteUserFromContact(userId, contactUserId);
+  @ApiOperation({ summary: 'Удалить пользователя из контактов' })
+  @ApiBody({ type: DeleteUserFromContactDto })
+  deleteUserFromContact(@Body() dto: DeleteUserFromContactDto) {
+    const { userId, contactUserId, botId } = dto;
+    return this.contactsService.deleteUserFromContact(userId, contactUserId, botId);
   }
 }

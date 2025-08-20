@@ -88,4 +88,8 @@ export class Form extends Model {
 
   @Column({ type: DataType.BOOLEAN })
   isUserStarted!: boolean;
+
+  // Изоляция по боту (опционально). Добавляется через sync({ alter: true }).
+  @Column({ type: DataType.UUID, allowNull: true })
+  botId?: string | null;
 }

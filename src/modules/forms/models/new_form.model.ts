@@ -80,4 +80,8 @@ export class NewForm extends Model {
 
   @Column({ type: DataType.ARRAY(DataType.TEXT) })
   recommendations!: string[];
+
+  // Изоляция по боту (опционально). Добавляется через sync({ alter: true }).
+  @Column({ type: DataType.UUID, allowNull: true })
+  botId?: string | null;
 }

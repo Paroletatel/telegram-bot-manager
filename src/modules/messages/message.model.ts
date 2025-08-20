@@ -19,4 +19,8 @@ export class Message extends Model {
 
   @Column({ type: DataType.STRING })
   status!: string;
+
+  // Изоляция по боту (опционально). Будет добавлена при sync({ alter: true }).
+  @Column({ type: DataType.UUID, allowNull: true })
+  botId?: string | null;
 }

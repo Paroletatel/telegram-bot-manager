@@ -17,21 +17,34 @@ export class MessagesService {
     @InjectModel(Settings) private settingsRepository: typeof Settings
   ) {}
 
-  async createNewMessage(fromUserId: string, toUserId: string, text: string) {
+  async createNewMessage(fromUserId: string, toUserId: string, text: string, botId?: string | null) {
     const fromUserInfo = await this.formsRepository.findOne({
       where: {
         userId: fromUserId,
       },
     });
 
-    await this.messagesRepository.create({
-      fromUserId,
-      fromUserName: `${fromUserInfo?.name} ${fromUserInfo?.surname} (${fromUserInfo?.systemName}) `,
-      toUserId,
-      text,
-      status: "new",
-      isAuto: false,
-    });
+    // Сначала пытаемся создать с botId, при ошибке (нет колонки) пробуем без него
+    try {
+      await this.messagesRepository.create({
+        fromUserId,
+        fromUserName: `${fromUserInfo?.name} ${fromUserInfo?.surname} (${fromUserInfo?.systemName}) `,
+        toUserId,
+        text,
+        status: "new",
+        isAuto: false,
+        botId: botId ?? null,
+      } as any);
+    } catch (_) {
+      await this.messagesRepository.create({
+        fromUserId,
+        fromUserName: `${fromUserInfo?.name} ${fromUserInfo?.surname} (${fromUserInfo?.systemName}) `,
+        toUserId,
+        text,
+        status: "new",
+        isAuto: false,
+      } as any);
+    }
 
     const toUserInfo = await this.formsRepository.findOne({
       where: {
@@ -46,24 +59,43 @@ export class MessagesService {
     });
 
     if (toUserAutoMessage && toUserAutoMessage.autoMessage) {
-      await this.messagesRepository.create({
-        fromUserId: toUserId,
-        fromUserName: toUserInfo?.systemName,
-        toUserId: fromUserId,
-        text:
-          "(Это автоматическое сообщение) " + toUserAutoMessage?.autoMessage,
-        status: "new",
-        isAuto: true,
-      });
+      try {
+        await this.messagesRepository.create({
+          fromUserId: toUserId,
+          fromUserName: toUserInfo?.systemName,
+          toUserId: fromUserId,
+          text:
+            "(Это автоматическое сообщение) " + toUserAutoMessage?.autoMessage,
+          status: "new",
+          isAuto: true,
+          botId: botId ?? null,
+        } as any);
+      } catch (_) {
+        await this.messagesRepository.create({
+          fromUserId: toUserId,
+          fromUserName: toUserInfo?.systemName,
+          toUserId: fromUserId,
+          text:
+            "(Это автоматическое сообщение) " + toUserAutoMessage?.autoMessage,
+          status: "new",
+          isAuto: true,
+        } as any);
+      }
     }
   }
 
-  async getNewMessages() {
-    const messages = await this.messagesRepository.findAll({
-      where: {
-        status: "new",
-      },
-    });
+  async getNewMessages(botId?: string | null) {
+    let messages: Message[] = [];
+    try {
+      const where: any = botId !== undefined ? { status: "new", botId } : { status: "new" };
+      messages = await this.messagesRepository.findAll({
+        where,
+      });
+    } catch (_) {
+      messages = await this.messagesRepository.findAll({
+        where: { status: "new" },
+      });
+    }
 
     const users = messages.map((obj) => obj["toUserId"]).flat();
 
@@ -87,26 +119,32 @@ export class MessagesService {
       const [userStartHours, userStartMinutes] = user.accessTimeStart
         ? user.accessTimeStart.split(":")
         : [null, null];
-      const { userEndHours, userEndMinutes } = user.accessTimeEnd
+      const [userEndHours, userEndMinutes] = user.accessTimeEnd
         ? user.accessTimeEnd.split(":")
         : [null, null];
       if (
         (!user.accessDays || user.accessDays.includes(currentDay)) &&
         user.availability == true
       ) {
-        if (
-          user.accessAllTime ||
-          userStartHours === null ||
-          userStartMinutes === null ||
-          (currentHour >= Number(userStartHours) &&
-            currentMinutes > Number(userStartMinutes) &&
-            currentHour <= Number(userEndHours) &&
-            currentMinutes < Number(userEndMinutes))
-        ) {
-          const message = messages.filter(
+        const sH = userStartHours !== null ? Number(userStartHours) : null;
+        const sM = userStartMinutes !== null ? Number(userStartMinutes) : null;
+        const eH = userEndHours !== null ? Number(userEndHours) : null;
+        const eM = userEndMinutes !== null ? Number(userEndMinutes) : null;
+
+        const withinWindow = (() => {
+          if (user.accessAllTime) return true;
+          if (sH === null || sM === null || eH === null || eM === null) return true; // неполные настройки — пропускаем
+          // Сравнение в пределах одного дня, включая границы
+          const afterStart = currentHour > sH || (currentHour === sH && currentMinutes >= sM);
+          const beforeEnd = currentHour < eH || (currentHour === eH && currentMinutes <= eM);
+          return afterStart && beforeEnd;
+        })();
+
+        if (withinWindow) {
+          const filteredMessages = messages.filter(
             (mess) => mess.toUserId === user.userId
           );
-          messagesToSend = messagesToSend.concat(messages);
+          messagesToSend = messagesToSend.concat(filteredMessages);
         }
       }
     }
@@ -127,14 +165,19 @@ export class MessagesService {
     );
   }
 
-  async getNewMessagesForUser(userId: string) {
+  async getNewMessagesForUser(userId: string, botId?: string | null) {
     let ret = [];
-    const messages = await this.messagesRepository.findAll({
-      where: {
-        toUserId: userId,
-        status: "sended",
-      },
-    });
+    let messages: Message[] = [];
+    try {
+      const where: any = botId !== undefined
+        ? { toUserId: userId, status: "sended", botId }
+        : { toUserId: userId, status: "sended" };
+      messages = await this.messagesRepository.findAll({ where });
+    } catch (_) {
+      messages = await this.messagesRepository.findAll({
+        where: { toUserId: userId, status: "sended" },
+      });
+    }
 
     for (const message of messages) {
       const user = await this.formsRepository.findOne({
