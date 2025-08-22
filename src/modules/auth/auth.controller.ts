@@ -1,4 +1,14 @@
-import { BadRequestException, Body, Controller, Get, Logger, Post, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Logger,
+  Post,
+  Request,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectModel } from '@nestjs/sequelize';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -7,13 +17,14 @@ import { parse, validate } from '@telegram-apps/init-data-node';
 import { Request as ExpressRequest } from 'express';
 import { WhereOptions } from 'sequelize';
 
+import { JwtPayload } from '../../../../shared/types/jwt';
 import { RoleTypeEnum } from '../../models';
 import { RolesService } from '../roles/roles.service';
 import { UsersService } from '../users/users.service';
 import { Bot } from '../users-chats/bots.model';
 import { AuthenticateDto } from './dto/authenticate.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-import { JwtAuthService, JwtPayload } from './jwt.service';
+import { JwtAuthService } from './jwt.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 interface JwtRequest extends ExpressRequest {

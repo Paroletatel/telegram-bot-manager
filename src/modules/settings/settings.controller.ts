@@ -2,6 +2,9 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../roles/roles.decorator';
+import { RolesGuard } from '../roles/roles.guard';
+import { RoleTypeEnum } from '../roles/roles.service';
 import { SettingsDTO } from './settings.dto';
 import { SettingsService } from './settings.service';
 
@@ -12,6 +15,8 @@ export class SettingsController {
   constructor(private settingsService: SettingsService) {}
 
   @Post('/updateSetting')
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   updateSetting(
     @Body('settingName') settingName: string,
     @Body('value') value: string,
@@ -21,6 +26,8 @@ export class SettingsController {
   }
 
   @Post('/updateAllSettings')
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   updateAllSettings(@Body() settings: SettingsDTO) {
     return this.settingsService.updateAllSettings(settings);
   }

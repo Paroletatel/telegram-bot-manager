@@ -1,6 +1,7 @@
 import { forwardRef,Module } from '@nestjs/common';
 import { SequelizeModule } from '@nestjs/sequelize';
 
+import { RolesModule } from '../roles/roles.module';
 import { TelegramModule } from '../telegram/telegram.module';
 import { Bot } from './bots.model';
 import { Chats } from './chats.model';
@@ -15,6 +16,7 @@ import { UsersChatsService } from './users-chats.service';
   imports: [
     SequelizeModule.forFeature([UsersChats, Chats, Bot, UserChat]),
     forwardRef(() => TelegramModule), // Используем forwardRef для избежания циклических зависимостей
+    RolesModule,
   ],
   exports: [UsersChatsService],
 })

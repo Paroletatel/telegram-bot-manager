@@ -42,7 +42,7 @@ export class SwitchRoleDto {
 }
 
 @ApiTags('roles')
-@ApiBearerAuth()
+@ApiBearerAuth('JWT-auth')
 @Controller('roles')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RolesController {

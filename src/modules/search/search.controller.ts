@@ -2,6 +2,9 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../roles/roles.decorator';
+import { RolesGuard } from '../roles/roles.guard';
+import { RoleTypeEnum } from '../roles/roles.service';
 import { SearchService } from './search.service';
 
 @ApiBearerAuth('JWT-auth')
@@ -71,6 +74,8 @@ export class SearchController {
   }
 
   @Post('/adminVectorSearch')
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   adminVectorSearch(@Body('query') query: string) {
     return this.searchService.adminVectorSearch(query);
   }

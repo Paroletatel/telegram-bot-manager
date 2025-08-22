@@ -2,6 +2,9 @@ import { Body, Controller, Get, Post, Query,Request, UseGuards } from '@nestjs/c
 import { ApiBearerAuth } from '@nestjs/swagger';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../roles/roles.decorator';
+import { RolesGuard } from '../roles/roles.guard';
+import { RoleTypeEnum } from '../roles/roles.service';
 import { UsersChatsService } from './users-chats.service';
 
 interface JwtUser {
@@ -23,6 +26,8 @@ export class UsersChatsController {
   }
 
   @Post('/addChat')
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   addChat(@Body('chatId') chatId: string, @Body('chatName') chatName: string) {
     return this.usersChatsService.addChat(chatId, chatName);
   }
@@ -45,6 +50,8 @@ export class UsersChatsController {
   }
 
   @Post('/usersChat')
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   setGroupToUser(@Body('userId') userId: string, @Body('groupId') groupId: string) {
     return this.usersChatsService.setGroupToUser(String(userId), String(groupId));
   }
