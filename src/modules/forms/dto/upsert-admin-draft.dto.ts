@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsOptional, IsString, ValidateNested } from 'class-validator';
+
 import { AppFormBodyDto } from './app-form-body.dto';
 
 export class UpsertAdminDraftDto {

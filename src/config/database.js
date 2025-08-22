@@ -2,7 +2,9 @@ require('dotenv').config();
 
 module.exports = {
   development: {
-    url: process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/telegram_bot_manager',
+    url:
+      process.env.DATABASE_URL ||
+      'postgres://postgres:postgres@localhost:5432/telegram_bot_manager',
     dialect: 'postgres',
     logging: console.log,
     define: {
@@ -13,7 +15,9 @@ module.exports = {
     },
   },
   test: {
-    url: process.env.TEST_DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/telegram_bot_manager_test',
+    url:
+      process.env.TEST_DATABASE_URL ||
+      'postgres://postgres:postgres@localhost:5432/telegram_bot_manager_test',
     dialect: 'postgres',
     logging: false,
     define: {
@@ -30,8 +34,8 @@ module.exports = {
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false
-      }
+        rejectUnauthorized: false,
+      },
     },
     define: {
       timestamps: true,
@@ -39,5 +43,5 @@ module.exports = {
       createdAt: 'created_at',
       updatedAt: 'updated_at',
     },
-  }
+  },
 };

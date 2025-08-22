@@ -1,11 +1,15 @@
-import { INavigationButton } from '../interfaces/navigation.interface';
+import {
+  INavigationButton,
+  ITelegramInlineKeyboard,
+  ITelegramKeyboard,
+} from '../interfaces/navigation.interface';
 
 export interface IKeyboardConfig {
   type: string;
   name: string;
   buttons: INavigationButton[] | { [chatId: string]: INavigationButton[] };
   text: string;
-  buttonsFabric?: (chatId: string, data?: any) => Promise<INavigationButton[]>;
+  buttonsFabric?: (chatId: string, data?: unknown) => Promise<INavigationButton[]>;
   backButton?: 'yes' | 'no';
   canBePrev?: 'yes' | 'no';
   withInlineKeyboard?: string;
@@ -23,7 +27,7 @@ export class Keyboard {
   public buttons: INavigationButton[] | { [chatId: string]: INavigationButton[] };
   public text: string;
   public prev: { [chatId: string]: string } = {};
-  public buttonsFabric?: (chatId: string, data?: any) => Promise<INavigationButton[]>;
+  public buttonsFabric?: (chatId: string, data?: unknown) => Promise<INavigationButton[]>;
   public backButton?: 'yes' | 'no';
   public canBePrev?: 'yes' | 'no';
   public withInlineKeyboard?: string;
@@ -47,12 +51,13 @@ export class Keyboard {
     this.next = keyboard.next;
   }
 
-  async addButtons(chatId: string, data?: any): Promise<void> {
+  async addButtons(chatId: string, data?: unknown): Promise<void> {
     if (this.buttonsFabric) {
       if (!this.buttons || typeof this.buttons !== 'object') {
         this.buttons = {};
       }
-      (this.buttons as { [chatId: string]: INavigationButton[] })[chatId] = await this.buttonsFabric(chatId, data);
+      (this.buttons as { [chatId: string]: INavigationButton[] })[chatId] =
+        await this.buttonsFabric(chatId, data);
     }
   }
 
@@ -68,29 +73,32 @@ export class Keyboard {
     return this.prev[chatId];
   }
 
-  async clickButton(chatId: string, name: string): Promise<{
+  async clickButton(
+    chatId: string,
+    name: string,
+  ): Promise<{
     replyKeyboard?: string;
     inlineKeyboard?: string;
     text?: string;
   }> {
     let button: INavigationButton | null = null;
-    
+
     // Определяем откуда брать кнопки
     const buttonsArray = this.getButtonsForChat(chatId);
-    
+
     if (buttonsArray) {
-      button = buttonsArray.find(btn => btn.name === name) || null;
+      button = buttonsArray.find((btn) => btn.name === name) || null;
       if (!button && buttonsArray[0]?.callbackData) {
-        button = buttonsArray.find(btn => btn.callbackData === name) || null;
+        button = buttonsArray.find((btn) => btn.callbackData === name) || null;
       }
     }
 
     if (!button) return {};
-    
+
     if (button.callback) {
       await button.callback(chatId, name);
     }
-    
+
     return button.next || {};
   }
 
@@ -105,10 +113,10 @@ export class Keyboard {
   }
 
   // Абстрактный метод, будет реализован в наследниках
-  getKeyboard(chatId: string, page?: number): { 
-    keyboard?: Array<Array<{ text: string; web_app?: { url: string } }>>;
-    inline_keyboard?: Array<Array<{ text: string; callback_data?: string; web_app?: { url: string } }>>;
-  } {
+  getKeyboard(
+    _chatId: string,
+    _page?: number,
+  ): ITelegramKeyboard | ITelegramInlineKeyboard | {} {
     return {};
   }
 }

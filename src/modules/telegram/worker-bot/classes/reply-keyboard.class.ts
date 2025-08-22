@@ -1,11 +1,11 @@
-import { Keyboard } from './keyboard.class';
 import { ITelegramKeyboard } from '../interfaces/navigation.interface';
+import { Keyboard } from './keyboard.class';
 
 export class ReplyKeyboard extends Keyboard {
   getKeyboard(chatId: string): ITelegramKeyboard {
     const finalButtons: Array<Array<{ text: string; web_app?: { url: string } }>> = [];
     const buttonsArray = this.getButtonsForChat(chatId); // Используем метод из базового класса
-    
+
     for (const btn of buttonsArray) {
       if (btn.appUrl) {
         finalButtons.push([{ text: btn.name, web_app: { url: btn.appUrl } }]);

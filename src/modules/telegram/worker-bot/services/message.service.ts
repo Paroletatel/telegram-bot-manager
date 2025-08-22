@@ -1,10 +1,17 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
-import { StateService } from './state.service';
-import { NavigationService } from './navigation.service';
-import { UsersService } from '../../../users/users.service';
+
 import { RolesService } from '../../../roles/roles.service';
+import { UsersService } from '../../../users/users.service';
+import {
+  IBotState,
+  ITelegramInlineKeyboard,
+  ITelegramKeyboard,
+  NavigationActions,
+} from '../interfaces/navigation.interface';
 import { CallbackService } from './callback.service';
+import { NavigationService } from './navigation.service';
+import { StateService } from './state.service';
 
 @Injectable()
 export class MessageService {
@@ -21,10 +28,19 @@ export class MessageService {
     private readonly rolesService: RolesService,
   ) {}
 
+  // Type guards to avoid any when checking reply/inline keyboards
+  private hasInlineKeyboard(obj: unknown): obj is ITelegramInlineKeyboard {
+    return !!obj && typeof obj === 'object' && 'inline_keyboard' in (obj as Record<string, unknown>);
+  }
+
+  private hasReplyKeyboard(obj: unknown): obj is ITelegramKeyboard {
+    return !!obj && typeof obj === 'object' && 'keyboard' in (obj as Record<string, unknown>);
+  }
+
   async processMessage(
-    bot: TelegramBot, 
+    bot: TelegramBot,
     message: TelegramBot.Message,
-    botId: string
+    botId: string,
   ): Promise<void> {
     try {
       const chatId = message.chat.id.toString();
@@ -57,7 +73,6 @@ export class MessageService {
 
       // Основная обработка через старую систему навигации
       await this.processOldNavigation(bot, chatId, text || '', state);
-
     } catch (error) {
       this.logger.error('Error processing message:', error);
       await bot.sendMessage(message.chat.id, 'Извините, произошла ошибка');
@@ -73,48 +88,53 @@ export class MessageService {
   }
 
   async handleStartCommand(
-    bot: TelegramBot, 
-    message: TelegramBot.Message, 
+    bot: TelegramBot,
+    message: TelegramBot.Message,
     botId: string,
-    state: any
+    state: IBotState | null,
   ): Promise<void> {
     const chatId = message.chat.id.toString();
-  
+
     try {
       // Создаем/получаем пользователя для новой системы
-      const user = await this.usersService.findOrCreate(
-        message.from?.id.toString() || chatId,
-        {
-          firstName: message.from?.first_name || '',
-          username: message.from?.username || ''
-        }
-      );
-  
-      const userRole = await this.rolesService.getUserRoleForBot(user.id, botId) || 'user';
-      
+      const user = await this.usersService.findOrCreate(message.from?.id.toString() || chatId, {
+        firstName: message.from?.first_name || '',
+        username: message.from?.username || '',
+      });
+
+      const userRole = (await this.rolesService.getUserRoleForBot(user.id, botId)) || 'user';
+
       // Проверяем, является ли пользователь администратором из старой системы
       const adminIds = this.navigationService.getAdminId();
       const isOldAdmin = adminIds.includes(chatId);
-  
+
       if (isOldAdmin && state && state.auth !== false) {
         // Администратор из старой системы - показываем админское меню
         const adminMenu = this.navigationService.getNavigationItem('adminMainMenu');
         if (adminMenu) {
           await this.stateService.updateOrCreateStateInline(chatId, 'adminMainMenu');
-          await adminMenu.addButtons(chatId);
-          // ИСПРАВЛЕНО: убрали return, просто выполняем
-          await bot.sendMessage(chatId, adminMenu.text, {
-            reply_markup: adminMenu.getKeyboard(chatId)
-          });
+          if (adminMenu.addButtons) {
+            await adminMenu.addButtons(chatId);
+          }
+          // ИСПРАВЛЕНО: формируем корректный reply_markup без any
+          const markup = adminMenu.getKeyboard(chatId);
+          const options: TelegramBot.SendMessageOptions = {};
+          if (this.hasInlineKeyboard(markup)) {
+            options.reply_markup = markup as unknown as TelegramBot.InlineKeyboardMarkup;
+          } else if (this.hasReplyKeyboard(markup)) {
+            options.reply_markup = markup as unknown as TelegramBot.ReplyKeyboardMarkup;
+          }
+          await bot.sendMessage(chatId, adminMenu.text, options);
           return; // Завершаем выполнение функции
         }
       }
-  
+
       // Обычный пользователь или новый пользователь - проверяем регистрацию
       // TODO: Здесь будет логика проверки регистрации из старого бота
-      
+
       // Пока показываем стандартное приветствие с интеграцией старой и новой системы
-      const welcomeMessage = `👋 Добро пожаловать!\n\n` +
+      const welcomeMessage =
+        `👋 Добро пожаловать!\n\n` +
         `🆕 Новые функции:\n` +
         `Ваша роль: ${userRole === 'admin' ? '👑 Администратор' : '👤 Пользователь'}\n` +
         `/webapp - Веб-приложение\n` +
@@ -122,32 +142,33 @@ export class MessageService {
         `/info - Информация о боте\n\n` +
         `📋 Основные функции:\n` +
         `Здесь будут функции из старого бота...`;
-  
+
       // ИСПРАВЛЕНО: убрали return
       await bot.sendMessage(chatId, welcomeMessage);
-  
     } catch (error) {
       this.logger.error('Error in handleStartCommand:', error);
       await bot.sendMessage(chatId, 'Произошла ошибка при запуске');
     }
   }
   private async processOldNavigation(
-    bot: TelegramBot, 
-    chatId: string, 
-    text: string, 
-    state: any
+    bot: TelegramBot,
+    chatId: string,
+    text: string,
+    state: IBotState | null,
   ): Promise<void> {
     if (!state) return;
 
     const replyKeyboardName = state.reply_keyboard;
     const textName = state.text;
 
-    const replyKeyboard = this.navigationService.getNavigationItem(replyKeyboardName);
-    const textHandler = this.navigationService.getNavigationItem(textName);
+    const replyKeyboard = replyKeyboardName
+      ? this.navigationService.getNavigationItem(replyKeyboardName)
+      : undefined;
+    const textHandler = textName ? this.navigationService.getNavigationItem(textName) : undefined;
 
     // Обработка кнопки "Назад"
     if (text === 'Назад' && replyKeyboard) {
-      const prevName = replyKeyboard.getPrev(chatId);
+      const prevName = replyKeyboard.getPrev ? replyKeyboard.getPrev(chatId) : undefined;
       if (prevName) {
         await this.stateService.updateStatePrev(chatId, prevName);
         return await this.navigateToKeyboard(bot, chatId, prevName);
@@ -163,20 +184,20 @@ export class MessageService {
 
     // Обработка через text handler
     if (textHandler && Object.keys(nextActions).length === 0) {
-      const result = await textHandler.handleInput(chatId, text);
+      const result = textHandler.handleInput ? await textHandler.handleInput(chatId, text) : undefined;
       if (result === 'error') return;
       nextActions = textHandler.next || {};
     }
 
     // Выполняем переходы
-    await this.executeNavigation(bot, chatId, nextActions, replyKeyboardName);
+    await this.executeNavigation(bot, chatId, nextActions, replyKeyboardName ?? undefined);
   }
 
   private async executeNavigation(
-    bot: TelegramBot, 
-    chatId: string, 
-    actions: any,
-    currentKeyboard?: string
+    bot: TelegramBot,
+    chatId: string,
+    actions: NavigationActions | {},
+    currentKeyboard?: string,
   ): Promise<void> {
     for (const [actionType, targetName] of Object.entries(actions)) {
       if (!targetName) continue;
@@ -187,20 +208,36 @@ export class MessageService {
       switch (actionType) {
         case 'replyKeyboard':
           await this.stateService.updateOrCreateState(chatId, targetName as string);
-          if (currentKeyboard && target.name !== 'adminMainMenu' && target.name !== 'usersMainMenu') {
-            target.setPrev(currentKeyboard, chatId);
+          if (
+            currentKeyboard &&
+            target.name !== 'adminMainMenu' &&
+            target.name !== 'usersMainMenu'
+          ) {
+            target.setPrev && target.setPrev(currentKeyboard, chatId);
           }
-          await bot.sendMessage(chatId, target.text, {
-            reply_markup: target.getKeyboard(chatId)
-          });
+          {
+            const markup = target.getKeyboard(chatId);
+            const options: TelegramBot.SendMessageOptions = {};
+            if (this.hasReplyKeyboard(markup)) {
+              options.reply_markup = markup as unknown as TelegramBot.ReplyKeyboardMarkup;
+            }
+            await bot.sendMessage(chatId, target.text, options);
+          }
           break;
 
         case 'inlineKeyboard':
           await this.stateService.updateOrCreateStateInline(chatId, targetName as string);
-          await target.addButtons(chatId);
-          await bot.sendMessage(chatId, target.text, {
-            reply_markup: target.getKeyboard(chatId)
-          });
+          if (target.addButtons) {
+            await target.addButtons(chatId);
+          }
+          {
+            const markup = target.getKeyboard(chatId);
+            const options: TelegramBot.SendMessageOptions = {};
+            if (this.hasInlineKeyboard(markup)) {
+              options.reply_markup = markup as unknown as TelegramBot.InlineKeyboardMarkup;
+            }
+            await bot.sendMessage(chatId, target.text, options);
+          }
           break;
 
         case 'text':
@@ -211,44 +248,72 @@ export class MessageService {
     }
   }
 
-  private async navigateToKeyboard(bot: TelegramBot, chatId: string, targetName: string): Promise<void> {
+  private async navigateToKeyboard(
+    bot: TelegramBot,
+    chatId: string,
+    targetName: string,
+  ): Promise<void> {
     const target = this.navigationService.getNavigationItem(targetName);
     if (!target) return;
-  
+
     // Обработка клавиатуры с inline клавиатурой
     if (target.withInlineKeyboard) {
       await this.stateService.updateState(chatId, {
         inline_keyboard: target.withInlineKeyboard,
-        reply_keyboard: target.name
+        reply_keyboard: target.name,
       });
-  
+
       const inlineTarget = this.navigationService.getNavigationItem(target.withInlineKeyboard);
       if (inlineTarget) {
-        await inlineTarget.addButtons(chatId);
+        if (inlineTarget.addButtons) {
+          await inlineTarget.addButtons(chatId);
+        }
         // ИСПРАВЛЕНО: убрали return
-        await bot.sendMessage(chatId, inlineTarget.text, {
-          reply_markup: inlineTarget.getKeyboard(chatId)
-        });
+        {
+          const markup = inlineTarget.getKeyboard(chatId);
+          const options: TelegramBot.SendMessageOptions = {};
+          if (this.hasInlineKeyboard(markup)) {
+            options.reply_markup = markup as unknown as TelegramBot.InlineKeyboardMarkup;
+          }
+          await bot.sendMessage(chatId, inlineTarget.text, options);
+        }
       }
     }
-  
+
     // Проверка на отсутствие кнопок
-    if (!target.buttons[0] && !target.canBePrev) {
+    let hasButtons = false;
+    if (Array.isArray(target.buttons)) {
+      hasButtons = target.buttons.length > 0;
+    } else if (target.buttons && typeof target.buttons === 'object') {
+      const arr = target.buttons[chatId] || [];
+      hasButtons = Array.isArray(arr) && arr.length > 0;
+    }
+    if (!hasButtons && !target.canBePrev) {
       // ИСПРАВЛЕНО: убрали return
-      await this.processOldNavigation(bot, chatId, 'Назад', await this.stateService.getState(chatId));
+      await this.processOldNavigation(
+        bot,
+        chatId,
+        'Назад',
+        await this.stateService.getState(chatId),
+      );
       return;
     }
-  
+
     // ИСПРАВЛЕНО: убрали return
-    await bot.sendMessage(chatId, target.text, {
-      reply_markup: target.getKeyboard(chatId)
-    });
+    {
+      const markup = target.getKeyboard(chatId);
+      const options: TelegramBot.SendMessageOptions = {};
+      if (this.hasReplyKeyboard(markup)) {
+        options.reply_markup = markup as unknown as TelegramBot.ReplyKeyboardMarkup;
+      }
+      await bot.sendMessage(chatId, target.text, options);
+    }
   }
 
   private async handleContactRegistration(
-    bot: TelegramBot, 
-    message: TelegramBot.Message,
-    botId: string
+    _bot: TelegramBot,
+    _message: TelegramBot.Message,
+    _botId: string,
   ): Promise<void> {
     // TODO: Реализовать логику регистрации из старого бота
     this.logger.log('Contact registration handler - to be implemented');

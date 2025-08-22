@@ -7,7 +7,11 @@
     "dev": "ts-node src/main.ts",
     "migration:run": "sequelize-cli db:migrate",
     "migration:undo": "sequelize-cli db:migrate:undo",
-    "migration:create": "sequelize-cli migration:generate --name"
+    "migration:create": "sequelize-cli migration:generate --name",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json,md}\""
   },
   "dependencies": {
     "@nestjs/common": "^11.1.5",
@@ -19,6 +23,7 @@
     "@nestjs/schedule": "^6.0.0",
     "@nestjs/sequelize": "^11.0.0",
     "@nestjs/swagger": "^11.2.0",
+    "@nestjs/throttler": "^6.4.0",
     "@telegram-apps/init-data-node": "^2.0.10",
     "@types/helmet": "^0.0.48",
     "@types/passport-jwt": "^4.0.1",
@@ -41,6 +46,14 @@
     "@types/cron": "^2.4.3",
     "@types/node": "^24.1.0",
     "@types/node-telegram-bot-api": "^0.64.9",
+    "@typescript-eslint/eslint-plugin": "^8.40.0",
+    "@typescript-eslint/parser": "^8.40.0",
+    "eslint": "^9.33.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-prettier": "^5.5.4",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "prettier": "^3.6.2",
     "sequelize-cli": "^6.6.3",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

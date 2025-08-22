@@ -1,15 +1,21 @@
+import {
+  ILongInlinePage,
+  INavigationButton,
+  ITelegramInlineKeyboard,
+} from '../interfaces/navigation.interface';
 import { Keyboard } from './keyboard.class';
-import { ITelegramInlineKeyboard, ILongInlinePage, INavigationButton } from '../interfaces/navigation.interface';
 
 export class InlineKeyboard extends Keyboard {
   private pagesNavigator: { [chatId: string]: ILongInlinePage } = {};
 
   getKeyboard(chatId: string, page?: number): ITelegramInlineKeyboard {
-    const inlineButtons: Array<Array<{ 
-      text: string; 
-      callback_data?: string; 
-      web_app?: { url: string } 
-    }>> = [];
+    const inlineButtons: Array<
+      Array<{
+        text: string;
+        callback_data?: string;
+        web_app?: { url: string };
+      }>
+    > = [];
 
     let buttonsToShow: INavigationButton[];
 
@@ -51,7 +57,7 @@ export class InlineKeyboard extends Keyboard {
 
   updatePage(chatId: string, direction: 'next' | 'prev'): void {
     if (!this.pagesNavigator[chatId]) return;
-    
+
     if (direction === 'next') {
       this.pagesNavigator[chatId].page++;
     } else {

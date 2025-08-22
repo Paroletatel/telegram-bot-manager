@@ -1,10 +1,14 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { MessagesService } from './messages.service';
-import { CreateNewMessageDto } from './dto/create-new-message.dto';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ChangeMessageStatusDto } from './dto/change-message-status.dto';
+import { CreateNewMessageDto } from './dto/create-new-message.dto';
+import { MessagesService } from './messages.service';
 
 @ApiTags('Messages')
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('messages')
 export class MessagesController {
   constructor(private messagesService: MessagesService) {}
@@ -18,7 +22,9 @@ export class MessagesController {
   }
 
   @Get('/getNewMessages')
-  @ApiOperation({ summary: 'Получить новые сообщения для отправки (фильтрация по доступности получателя)' })
+  @ApiOperation({
+    summary: 'Получить новые сообщения для отправки (фильтрация по доступности получателя)',
+  })
   @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
   getNewMessages(@Query('botId') botId?: string) {
     return this.messagesService.getNewMessages(botId);

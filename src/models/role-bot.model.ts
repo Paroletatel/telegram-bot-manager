@@ -1,10 +1,21 @@
-import { Table, Column, Model, DataType, PrimaryKey, Default, ForeignKey, BelongsTo, CreatedAt } from 'sequelize-typescript';
-import { User } from './user.model';
-import { TelegramBot } from './telegram-bot.model';
-import { RoleType } from './role-type.model';
-import { RoleTypeEnum } from './role-type.enum';
+import {
+  BelongsTo,
+  Column,
+  CreatedAt,
+  DataType,
+  Default,
+  ForeignKey,
+  Model,
+  PrimaryKey,
+  Table,
+} from 'sequelize-typescript';
 
-@Table({ 
+import { RoleTypeEnum } from './role-type.enum';
+import { RoleType } from './role-type.model';
+import { TelegramBot } from './telegram-bot.model';
+import { User } from './user.model';
+
+@Table({
   tableName: 'role_bots',
   timestamps: true,
   underscored: true,
@@ -12,21 +23,21 @@ import { RoleTypeEnum } from './role-type.enum';
     {
       unique: true,
       fields: ['user_id', 'bot_id'],
-      name: 'role_bots_user_id_bot_id_unique'
+      name: 'role_bots_user_id_bot_id_unique',
     },
     {
       fields: ['user_id'],
-      name: 'role_bots_user_id_idx'
+      name: 'role_bots_user_id_idx',
     },
     {
       fields: ['bot_id'],
-      name: 'role_bots_bot_id_idx'
+      name: 'role_bots_bot_id_idx',
     },
     {
       fields: ['role_type_code'],
-      name: 'role_bots_role_type_code_idx'
-    }
-  ]
+      name: 'role_bots_role_type_code_idx',
+    },
+  ],
 })
 export class RoleBot extends Model {
   @PrimaryKey
@@ -38,7 +49,7 @@ export class RoleBot extends Model {
   @Column({
     type: DataType.UUID,
     allowNull: false,
-    field: 'user_id'
+    field: 'user_id',
   })
   userId!: string;
 
@@ -49,7 +60,7 @@ export class RoleBot extends Model {
   @Column({
     type: DataType.UUID,
     allowNull: false,
-    field: 'bot_id'
+    field: 'bot_id',
   })
   botId!: string;
 
@@ -63,16 +74,16 @@ export class RoleBot extends Model {
     field: 'role_type_code',
     references: {
       model: 'role_types',
-      key: 'code'
+      key: 'code',
     },
     onUpdate: 'CASCADE',
-    onDelete: 'CASCADE'
+    onDelete: 'CASCADE',
   })
   roleTypeCode!: RoleTypeEnum;
 
   @BelongsTo(() => RoleType, {
     foreignKey: 'role_type_code',
-    targetKey: 'code'
+    targetKey: 'code',
   })
   roleType!: RoleType;
 

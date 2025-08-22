@@ -1,4 +1,4 @@
-import { Column, Model, Table, DataType, PrimaryKey } from 'sequelize-typescript';
+import { Column, DataType, Model, PrimaryKey,Table } from 'sequelize-typescript';
 
 interface StatesAttributes {
   chatId: string;

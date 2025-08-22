@@ -1,16 +1,24 @@
-import { Body, Controller, Get, Post, UseGuards, Request, Query } from '@nestjs/common';
-import { UsersChatsService } from './users-chats.service';
-import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Body, Controller, Get, Post, Query,Request, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { UsersChatsService } from './users-chats.service';
+
+interface JwtUser {
+  id: string;
+}
+interface RequestWithUser {
+  user?: JwtUser;
+}
+
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('usersChats')
 export class UsersChatsController {
   constructor(private usersChatsService: UsersChatsService) {}
 
   @Post('/membership')
-  checkMembership(
-    @Body('chatId') chatId: string,
-    @Body('userId') userId: string,
-  ) {
+  checkMembership(@Body('chatId') chatId: string, @Body('userId') userId: string) {
     return this.usersChatsService.checkUserMembership(chatId, userId);
   }
 
@@ -30,21 +38,14 @@ export class UsersChatsController {
   }
 
   @Get('/availableForUser')
-  @UseGuards(JwtAuthGuard)
-  async getAvailableForUser(@Request() req: any, @Query('verify') verify?: string) {
-    const userId = req.user?.id as string;
+  async getAvailableForUser(@Request() req: RequestWithUser, @Query('verify') verify?: string) {
+    const userId = req.user?.id ?? '';
     const verifyMembership = String(verify).toLowerCase() === 'true';
     return this.usersChatsService.getAvailableForUser(String(userId), { verifyMembership });
   }
 
   @Post('/usersChat')
-  setGroupToUser(
-    @Body('userId') userId: string,
-    @Body('groupId') groupId: string,
-  ) {
-    return this.usersChatsService.setGroupToUser(
-      String(userId),
-      String(groupId),
-    );
+  setGroupToUser(@Body('userId') userId: string, @Body('groupId') groupId: string) {
+    return this.usersChatsService.setGroupToUser(String(userId), String(groupId));
   }
 }

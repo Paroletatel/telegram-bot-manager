@@ -1,7 +1,12 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
-import { SettingsService } from './settings.service';
-import { SettingsDTO } from './settings.dto';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { SettingsDTO } from './settings.dto';
+import { SettingsService } from './settings.service';
+
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('settings')
 export class SettingsController {
   constructor(private settingsService: SettingsService) {}

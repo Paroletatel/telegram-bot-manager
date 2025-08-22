@@ -1,6 +1,11 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { SearchService } from './search.service';
 
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('search')
 export class SearchController {
   constructor(private searchService: SearchService) {}

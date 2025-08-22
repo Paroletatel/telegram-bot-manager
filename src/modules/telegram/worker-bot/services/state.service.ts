@@ -1,15 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
-import { IBotState } from '../interfaces/navigation.interface';
+
 import { States } from '../../../../models/states.model';
+import { IBotState } from '../interfaces/navigation.interface';
 
 @Injectable()
 export class StateService {
   private readonly logger = new Logger(StateService.name);
 
-  constructor(
-    @InjectModel(States) private readonly statesModel: typeof States,
-  ) {}
+  constructor(@InjectModel(States) private readonly statesModel: typeof States) {}
 
   async updateOrCreateState(chatId: string, keyboardName: string): Promise<void> {
     try {
@@ -17,7 +16,7 @@ export class StateService {
         chatId,
         reply_keyboard: keyboardName,
         inline_keyboard: null,
-        text: null
+        text: null,
       });
     } catch (error) {
       this.logger.error(`Error updating state for ${chatId}:`, error);
@@ -28,9 +27,9 @@ export class StateService {
     try {
       await this.statesModel.upsert({
         chatId,
-        reply_keyboard: null,   // ИСПРАВЛЕНО: null вместо undefined
+        reply_keyboard: null, // ИСПРАВЛЕНО: null вместо undefined
         inline_keyboard: keyboardName,
-        text: null              // ИСПРАВЛЕНО: null вместо undefined
+        text: null, // ИСПРАВЛЕНО: null вместо undefined
       });
     } catch (error) {
       this.logger.error(`Error updating inline state for ${chatId}:`, error);
@@ -40,7 +39,7 @@ export class StateService {
   async getState(chatId: string): Promise<IBotState | null> {
     try {
       const state = await this.statesModel.findOne({
-        where: { chatId }
+        where: { chatId },
       });
       return state ? state.toJSON() : null;
     } catch (error) {
@@ -51,22 +50,26 @@ export class StateService {
 
   async updateStatePrev(chatId: string, keyboardNextName: string): Promise<void> {
     try {
-      await this.statesModel.update({
-        reply_keyboard: keyboardNextName,
-        inline_keyboard: null,  // ИСПРАВЛЕНО: null вместо undefined
-        text: null              // ИСПРАВЛЕНО: null вместо undefined
-      }, {
-        where: { chatId }
-      });
+      await this.statesModel.update(
+        {
+          reply_keyboard: keyboardNextName,
+          inline_keyboard: null, // ИСПРАВЛЕНО: null вместо undefined
+          text: null, // ИСПРАВЛЕНО: null вместо undefined
+        },
+        {
+          where: { chatId },
+        },
+      );
     } catch (error) {
       this.logger.error(`Error updating prev state for ${chatId}:`, error);
     }
   }
 
-  async updateState(chatId: string, updates: Partial<States>): Promise<void> { // ИСПРАВЛЕНО: Partial<States>
+  async updateState(chatId: string, updates: Partial<States>): Promise<void> {
+    // ИСПРАВЛЕНО: Partial<States>
     try {
       await this.statesModel.update(updates, {
-        where: { chatId }
+        where: { chatId },
       });
     } catch (error) {
       this.logger.error(`Error updating custom state for ${chatId}:`, error);

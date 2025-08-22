@@ -1,14 +1,9 @@
-import { RoleTypeEnum } from '../../models';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService as NestJwtService } from '@nestjs/jwt';
 
-export interface JwtPayload {
-  sub: string;      // User ID
-  username: string;  // Username
-  role: RoleTypeEnum; // User role
-  botId?: string;    // Optional bot ID for role context
-}
+import { JwtPayload } from '../../../../shared/types/jwt';
+import { RoleTypeEnum } from '../../models';
 
 @Injectable()
 export class JwtAuthService {
@@ -34,7 +29,7 @@ export class JwtAuthService {
     const payload: JwtPayload = {
       sub: userId,
       username,
-      role,
+      role: role as unknown as string,
       ...(botId && { botId }),
     };
 
@@ -59,8 +54,12 @@ export class JwtAuthService {
   /**
    * Генерация refresh-токена с увеличенным TTL
    */
-  async generateRefreshToken(payload: Pick<JwtPayload, 'sub' | 'username' | 'role'>): Promise<string> {
-    const refreshTtl = (this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d') || '7d').trim();
+  async generateRefreshToken(
+    payload: Pick<JwtPayload, 'sub' | 'username' | 'role'>,
+  ): Promise<string> {
+    const refreshTtl = (
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN', '7d') || '7d'
+    ).trim();
     return this.jwtService.signAsync(payload, {
       expiresIn: refreshTtl,
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -77,7 +76,7 @@ export class JwtAuthService {
       return await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
       });
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -85,12 +84,16 @@ export class JwtAuthService {
   /**
    * Проверка refresh-токена
    */
-  async verifyRefreshToken(token: string): Promise<(Pick<JwtPayload, 'sub' | 'username' | 'role'> & { exp: number }) | null> {
+  async verifyRefreshToken(
+    token: string,
+  ): Promise<Pick<JwtPayload, 'sub' | 'username' | 'role' | 'exp' | 'iat'> | null> {
     try {
-      return await this.jwtService.verifyAsync(token, {
+      return await this.jwtService.verifyAsync<
+        Pick<JwtPayload, 'sub' | 'username' | 'role' | 'exp' | 'iat'>
+      >(token, {
         secret: this.configService.get<string>('JWT_SECRET'),
-      }) as any;
-    } catch (error) {
+      });
+    } catch {
       return null;
     }
   }

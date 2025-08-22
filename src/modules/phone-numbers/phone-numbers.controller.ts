@@ -1,12 +1,17 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PhoneNumbersService } from './phone-numbers.service';
 
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('phoneNumbers')
 export class PhoneNumbersController {
   constructor(private phoneNumbersService: PhoneNumbersService) {}
 
   @Get('/checkNewMember/:userId')
-  checkNewMember(@Param('userId') userId: string): Promise<any> {
+  checkNewMember(@Param('userId') userId: string): Promise<'exists' | 'new'> {
     return this.phoneNumbersService.checkNewMember(userId);
   }
 
@@ -40,10 +45,7 @@ export class PhoneNumbersController {
   }
 
   @Post('/changeNumberStatus')
-  changeNumberStatus(
-    @Body('phoneNumber') phoneNumber: string,
-    @Body('status') status: string,
-  ) {
+  changeNumberStatus(@Body('phoneNumber') phoneNumber: string, @Body('status') status: string) {
     return this.phoneNumbersService.changeNumberStatus(phoneNumber, status);
   }
 

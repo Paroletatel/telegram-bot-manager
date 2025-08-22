@@ -1,12 +1,25 @@
-import { Column, Model, Table, DataType, PrimaryKey, Default, CreatedAt, UpdatedAt, HasMany, BelongsToMany } from 'sequelize-typescript';
+import type { BuildOptions } from 'sequelize';
+import {
+  BelongsToMany,
+  Column,
+  CreatedAt,
+  DataType,
+  Default,
+  HasMany,
+  Model,
+  PrimaryKey,
+  Table,
+  UpdatedAt,
+} from 'sequelize-typescript';
+
 import { RoleBot } from './role-bot.model';
-import { User } from './user.model';
 import { RoleType } from './role-type.model';
+import { User } from './user.model';
 
 @Table({
   tableName: 'telegram_bots',
   timestamps: true,
-  underscored: true
+  underscored: true,
 })
 export class TelegramBot extends Model {
   @PrimaryKey
@@ -18,28 +31,28 @@ export class TelegramBot extends Model {
     type: DataType.STRING,
     unique: true,
     allowNull: false,
-    field: 'token'
+    field: 'token',
   })
   token!: string;
 
   @Column({
     type: DataType.STRING,
     allowNull: false,
-    field: 'name'
+    field: 'name',
   })
   name!: string;
 
   @Column({
     type: DataType.BIGINT,
     allowNull: false,
-    field: 'owner_id'
+    field: 'owner_id',
   })
   ownerId!: number;
 
   @Default(true)
   @Column({
     type: DataType.BOOLEAN,
-    field: 'is_active'
+    field: 'is_active',
   })
   isActive!: boolean;
 
@@ -54,17 +67,17 @@ export class TelegramBot extends Model {
   // Связь с RoleBot (один ко многим)
   @HasMany(() => RoleBot, 'bot_id')
   roleBots: RoleBot[] = [];
-  
+
   // Связь с User через RoleBot (многие ко многим)
   @BelongsToMany(() => User, () => RoleBot, 'bot_id', 'user_id')
   users: User[] = [];
-  
+
   // Связь с RoleType через RoleBot (многие ко многим)
   @BelongsToMany(() => RoleType, () => RoleBot, 'bot_id', 'role_type_code')
   roleTypes: RoleType[] = [];
-  
+
   // Инициализация свойств для TypeScript strict mode
-  constructor(values?: any, options?: any) {
+  constructor(values?: Partial<TelegramBot>, options?: BuildOptions) {
     super(values, options);
     this.roleBots = [];
     this.users = [];

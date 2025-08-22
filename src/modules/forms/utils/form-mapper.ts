@@ -1,7 +1,7 @@
 import { AppFormDTO } from '../app-form.dto';
 import { AppFormBodyDto } from '../dto/app-form-body.dto';
-import { OrganizationInterface } from '../interfaces/organization.interface';
 import { ContactInterface } from '../interfaces/contact.interface';
+import { OrganizationInterface } from '../interfaces/organization.interface';
 
 export function mapToAppFormDTO(input: AppFormBodyDto): AppFormDTO {
   return {

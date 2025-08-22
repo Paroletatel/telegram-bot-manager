@@ -1,8 +1,14 @@
-import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import TelegramBot from 'node-telegram-bot-api';
-import { StateService } from './state.service';
-import { NavigationService } from './navigation.service';
+
+import {
+  ITelegramInlineKeyboard,
+  ITelegramKeyboard,
+  NavigationActions,
+} from '../interfaces/navigation.interface';
 import { MessageService } from './message.service';
+import { NavigationService } from './navigation.service';
+import { StateService } from './state.service';
 
 @Injectable()
 export class CallbackService {
@@ -15,16 +21,23 @@ export class CallbackService {
     private readonly messageService: MessageService,
   ) {}
 
+  // Type guards to avoid any when checking reply/inline keyboards
+  private hasInlineKeyboard(obj: unknown): obj is ITelegramInlineKeyboard {
+    return !!obj && typeof obj === 'object' && 'inline_keyboard' in (obj as Record<string, unknown>);
+  }
+
+  private hasReplyKeyboard(obj: unknown): obj is ITelegramKeyboard {
+    return !!obj && typeof obj === 'object' && 'keyboard' in (obj as Record<string, unknown>);
+  }
+
   async processCallback(
-    bot: TelegramBot, 
+    bot: TelegramBot,
     callbackQuery: TelegramBot.CallbackQuery,
-    botId: string
+    _botId: string,
   ): Promise<void> {
     try {
       const chatId = callbackQuery.message?.chat.id.toString();
       const callbackData = callbackQuery.data;
-      const msgId = callbackQuery.message?.message_id;
-
       if (!chatId || !callbackData) return;
 
       // Проверяем, является ли это callback от новой системы ролей
@@ -53,11 +66,15 @@ export class CallbackService {
       const keyboardNextData = await inlineKeyboardNow.clickButton(chatId, callbackData);
 
       // ИСПРАВЛЕНО: Проверяем на undefined
-      await this.executeCallbackNavigation(bot, chatId, keyboardNextData, replyKeyboardNowName || undefined);
+      await this.executeCallbackNavigation(
+        bot,
+        chatId,
+        keyboardNextData,
+        replyKeyboardNowName || undefined,
+      );
 
       // Подтверждаем callback
       await bot.answerCallbackQuery(callbackQuery.id);
-
     } catch (error) {
       this.logger.error('Error processing callback:', error);
       if (callbackQuery.id) {
@@ -67,9 +84,9 @@ export class CallbackService {
   }
 
   private async handlePagination(
-    bot: TelegramBot, 
-    callbackQuery: TelegramBot.CallbackQuery, 
-    direction: string
+    bot: TelegramBot,
+    callbackQuery: TelegramBot.CallbackQuery,
+    direction: string,
   ): Promise<void> {
     const chatId = callbackQuery.message?.chat.id.toString();
     const msgId = callbackQuery.message?.message_id;
@@ -99,18 +116,24 @@ export class CallbackService {
 
     // Обновляем клавиатуру
     const newKeyboard = inlineKeyboard.getKeyboard(chatId, page);
-    await bot.editMessageReplyMarkup(newKeyboard, {
-      chat_id: chatId,
-      message_id: msgId
-    });
+    // Узкое приведение типов с защитой структуры
+    if (this.hasInlineKeyboard(newKeyboard)) {
+      await bot.editMessageReplyMarkup(newKeyboard as unknown as TelegramBot.InlineKeyboardMarkup, {
+        chat_id: chatId,
+        message_id: msgId,
+      });
+    } else {
+      // Если структура не соответствует inline, просто выходим
+      return;
+    }
   }
 
   // ИСПРАВЛЕНО: Сделали параметр опциональным
   private async executeCallbackNavigation(
-    bot: TelegramBot, 
-    chatId: string, 
-    actions: any,
-    currentReplyKeyboard?: string
+    bot: TelegramBot,
+    chatId: string,
+    actions: NavigationActions | {},
+    currentReplyKeyboard?: string,
   ): Promise<void> {
     for (const [actionType, targetName] of Object.entries(actions)) {
       if (!targetName) continue;
@@ -121,16 +144,25 @@ export class CallbackService {
       switch (actionType) {
         case 'replyKeyboard':
           await this.stateService.updateOrCreateState(chatId, targetName as string);
-          
-          if (currentReplyKeyboard && target.name !== 'adminMainMenu' && target.name !== 'usersMainMenu') {
-            target.setPrev(currentReplyKeyboard, chatId);
+
+          if (
+            currentReplyKeyboard &&
+            target.name !== 'adminMainMenu' &&
+            target.name !== 'usersMainMenu'
+          ) {
+            target.setPrev?.(currentReplyKeyboard, chatId);
           } else {
-            target.setPrev(null, chatId);
+            target.setPrev?.(null, chatId);
           }
 
-          await bot.sendMessage(chatId, target.text, {
-            reply_markup: (target.getKeyboard(chatId))
-          });
+          {
+            const markup = target.getKeyboard(chatId);
+            const options: TelegramBot.SendMessageOptions = {};
+            if (this.hasReplyKeyboard(markup)) {
+              options.reply_markup = markup as unknown as TelegramBot.ReplyKeyboardMarkup;
+            }
+            await bot.sendMessage(chatId, target.text, options);
+          }
           break;
 
         case 'inlineKeyboard':
@@ -138,9 +170,14 @@ export class CallbackService {
           if (target.addButtons) {
             await target.addButtons(chatId);
           }
-          await bot.sendMessage(chatId, target.text, {
-            reply_markup: (target.getKeyboard(chatId))
-          });
+          {
+            const markup = target.getKeyboard(chatId);
+            const options: TelegramBot.SendMessageOptions = {};
+            if (this.hasInlineKeyboard(markup)) {
+              options.reply_markup = markup as unknown as TelegramBot.InlineKeyboardMarkup;
+            }
+            await bot.sendMessage(chatId, target.text, options);
+          }
           break;
 
         case 'text':

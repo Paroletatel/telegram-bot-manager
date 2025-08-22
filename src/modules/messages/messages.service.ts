@@ -1,23 +1,26 @@
-import { Injectable } from "@nestjs/common";
-import { InjectModel } from "@nestjs/sequelize";
-import { Message } from "./message.model";
-import { Form } from "../forms/models/form.model";
-import { Settings } from "../settings/settings.model";
-import { Op } from "sequelize";
-import {
-  getCurrentHourInTimezone,
-  getDayOfTheWeek,
-} from "./utils/get-day-of-the-week";
+import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { Op, WhereOptions } from 'sequelize';
+
+import { Form } from '../forms/models/form.model';
+import { Settings } from '../settings/settings.model';
+import { Message } from './message.model';
+import { getCurrentHourInTimezone, getDayOfTheWeek } from './utils/get-day-of-the-week';
 
 @Injectable()
 export class MessagesService {
   constructor(
     @InjectModel(Message) private messagesRepository: typeof Message,
     @InjectModel(Form) private formsRepository: typeof Form,
-    @InjectModel(Settings) private settingsRepository: typeof Settings
+    @InjectModel(Settings) private settingsRepository: typeof Settings,
   ) {}
 
-  async createNewMessage(fromUserId: string, toUserId: string, text: string, botId?: string | null) {
+  async createNewMessage(
+    fromUserId: string,
+    toUserId: string,
+    text: string,
+    botId?: string | null,
+  ) {
     const fromUserInfo = await this.formsRepository.findOne({
       where: {
         userId: fromUserId,
@@ -31,19 +34,19 @@ export class MessagesService {
         fromUserName: `${fromUserInfo?.name} ${fromUserInfo?.surname} (${fromUserInfo?.systemName}) `,
         toUserId,
         text,
-        status: "new",
+        status: 'new',
         isAuto: false,
         botId: botId ?? null,
-      } as any);
-    } catch (_) {
+      });
+    } catch {
       await this.messagesRepository.create({
         fromUserId,
         fromUserName: `${fromUserInfo?.name} ${fromUserInfo?.surname} (${fromUserInfo?.systemName}) `,
         toUserId,
         text,
-        status: "new",
+        status: 'new',
         isAuto: false,
-      } as any);
+      });
     }
 
     const toUserInfo = await this.formsRepository.findOne({
@@ -64,22 +67,20 @@ export class MessagesService {
           fromUserId: toUserId,
           fromUserName: toUserInfo?.systemName,
           toUserId: fromUserId,
-          text:
-            "(Это автоматическое сообщение) " + toUserAutoMessage?.autoMessage,
-          status: "new",
+          text: '(Это автоматическое сообщение) ' + toUserAutoMessage?.autoMessage,
+          status: 'new',
           isAuto: true,
           botId: botId ?? null,
-        } as any);
-      } catch (_) {
+        });
+      } catch {
         await this.messagesRepository.create({
           fromUserId: toUserId,
           fromUserName: toUserInfo?.systemName,
           toUserId: fromUserId,
-          text:
-            "(Это автоматическое сообщение) " + toUserAutoMessage?.autoMessage,
-          status: "new",
+          text: '(Это автоматическое сообщение) ' + toUserAutoMessage?.autoMessage,
+          status: 'new',
           isAuto: true,
-        } as any);
+        });
       }
     }
   }
@@ -87,17 +88,18 @@ export class MessagesService {
   async getNewMessages(botId?: string | null) {
     let messages: Message[] = [];
     try {
-      const where: any = botId !== undefined ? { status: "new", botId } : { status: "new" };
+      const where: WhereOptions<Message> =
+        botId !== undefined ? ({ status: 'new', botId } as WhereOptions<Message>) : ({ status: 'new' } as WhereOptions<Message>);
       messages = await this.messagesRepository.findAll({
         where,
       });
-    } catch (_) {
+    } catch {
       messages = await this.messagesRepository.findAll({
-        where: { status: "new" },
+        where: { status: 'new' },
       });
     }
 
-    const users = messages.map((obj) => obj["toUserId"]).flat();
+    const users: string[] = messages.map((m) => m.toUserId);
 
     const usersSettings = await this.settingsRepository.findAll({
       where: {
@@ -117,15 +119,12 @@ export class MessagesService {
       const currentHour = currentTime.hour;
       const currentMinutes = currentTime.minutes;
       const [userStartHours, userStartMinutes] = user.accessTimeStart
-        ? user.accessTimeStart.split(":")
+        ? user.accessTimeStart.split(':')
         : [null, null];
       const [userEndHours, userEndMinutes] = user.accessTimeEnd
-        ? user.accessTimeEnd.split(":")
+        ? user.accessTimeEnd.split(':')
         : [null, null];
-      if (
-        (!user.accessDays || user.accessDays.includes(currentDay)) &&
-        user.availability == true
-      ) {
+      if ((!user.accessDays || user.accessDays.includes(currentDay)) && user.availability == true) {
         const sH = userStartHours !== null ? Number(userStartHours) : null;
         const sM = userStartMinutes !== null ? Number(userStartMinutes) : null;
         const eH = userEndHours !== null ? Number(userEndHours) : null;
@@ -141,9 +140,7 @@ export class MessagesService {
         })();
 
         if (withinWindow) {
-          const filteredMessages = messages.filter(
-            (mess) => mess.toUserId === user.userId
-          );
+          const filteredMessages = messages.filter((mess) => mess.toUserId === user.userId);
           messagesToSend = messagesToSend.concat(filteredMessages);
         }
       }
@@ -161,21 +158,21 @@ export class MessagesService {
         where: {
           id: messageId,
         },
-      }
+      },
     );
   }
 
   async getNewMessagesForUser(userId: string, botId?: string | null) {
-    let ret = [];
+    const ret: Array<{ systemName?: string; id: string; fromUserId: string; text: string }> = [];
     let messages: Message[] = [];
     try {
-      const where: any = botId !== undefined
-        ? { toUserId: userId, status: "sended", botId }
-        : { toUserId: userId, status: "sended" };
+      const where: WhereOptions<Message> = (botId !== undefined
+        ? { toUserId: userId, status: 'sended', botId }
+        : { toUserId: userId, status: 'sended' }) as WhereOptions<Message>;
       messages = await this.messagesRepository.findAll({ where });
-    } catch (_) {
+    } catch {
       messages = await this.messagesRepository.findAll({
-        where: { toUserId: userId, status: "sended" },
+        where: { toUserId: userId, status: 'sended' },
       });
     }
 

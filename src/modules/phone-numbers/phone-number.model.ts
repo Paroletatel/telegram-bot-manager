@@ -3,7 +3,7 @@ import { Column, DataType, Model, Table } from 'sequelize-typescript';
 @Table({ tableName: 'phoneNumbers' })
 export class PhoneNumber extends Model {
   @Column({ type: DataType.STRING, unique: true })
-  userId!: string; 
+  userId!: string;
 
   @Column({ type: DataType.TEXT })
   userName!: string;

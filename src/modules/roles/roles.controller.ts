@@ -1,12 +1,25 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Query, Request, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { RolesService, RoleTypeEnum } from './roles.service';
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { ApiBearerAuth,ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsString } from 'class-validator';
+
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from './roles.decorator';
 import { RolesGuard } from './roles.guard';
+import { RolesService, RoleTypeEnum } from './roles.service';
 
-export class AssignRoleDto { 
+export class AssignRoleDto {
   @IsString()
   @IsNotEmpty()
   userId!: string;
@@ -40,7 +53,7 @@ export class RolesController {
   @ApiResponse({ status: 200, description: 'Returns the role of the user for the specified bot' })
   async getUserRole(
     @Param('userId') userId: string,
-    @Param('botId') botId: string
+    @Param('botId') botId: string,
   ): Promise<{ role: RoleTypeEnum }> {
     const role = await this.rolesService.getUserRoleForBot(userId, botId);
     return { role };
@@ -58,7 +71,7 @@ export class RolesController {
 
   @Put()
   @Roles(RoleTypeEnum.ADMIN)
-  @ApiOperation({ summary: 'Update a user\'s role for a bot' })
+  @ApiOperation({ summary: "Update a user's role for a bot" })
   @ApiResponse({ status: 200, description: 'Role updated successfully' })
   async updateRole(@Body() assignRoleDto: AssignRoleDto) {
     const { userId, botId, role } = assignRoleDto;
@@ -70,10 +83,7 @@ export class RolesController {
   @Roles(RoleTypeEnum.ADMIN)
   @ApiOperation({ summary: 'Remove a role from a user for a bot' })
   @ApiResponse({ status: 200, description: 'Role removed successfully' })
-  async removeRole(
-    @Param('userId') userId: string,
-    @Param('botId') botId: string
-  ) {
+  async removeRole(@Param('userId') userId: string, @Param('botId') botId: string) {
     await this.rolesService.removeRoleFromUser(userId, botId);
     return { message: 'Role removed successfully' };
   }
@@ -81,7 +91,10 @@ export class RolesController {
   @Get('bot/:botId/users')
   @Roles(RoleTypeEnum.ADMIN)
   @ApiOperation({ summary: 'Get all users with their roles for a specific bot' })
-  @ApiResponse({ status: 200, description: 'Returns all users with their roles for the specified bot' })
+  @ApiResponse({
+    status: 200,
+    description: 'Returns all users with their roles for the specified bot',
+  })
   async getBotUsers(@Param('botId') botId: string) {
     const users = await this.rolesService.getBotUsersWithRoles(botId);
     return { users };
@@ -94,11 +107,11 @@ export class RolesController {
   @ApiResponse({ status: 404, description: 'Bot not found' })
   async switchRole(
     @Body() switchRoleDto: SwitchRoleDto,
-    @Request() req: any
+    @Request() req: { user: { id: string } },
   ) {
     const { role, botId } = switchRoleDto;
     const userId = req.user.id;
-    
+
     // Проверяем, что роль валидна
     if (!Object.values(RoleTypeEnum).includes(role)) {
       throw new BadRequestException('Invalid role');
@@ -106,16 +119,16 @@ export class RolesController {
 
     // Обновляем роль пользователя
     await this.rolesService.updateUserRole(userId, botId, role);
-    
-    return { 
+
+    return {
       message: 'Role switched successfully',
-      role
+      role,
     };
   }
 
   @Get('user/:userId/bots')
   @ApiOperation({ summary: 'Get all bots with roles for a user' })
-  @ApiResponse({ status: 200, description: 'Returns bots with user\'s roles' })
+  @ApiResponse({ status: 200, description: "Returns bots with user's roles" })
   async getUserBots(@Param('userId') userId: string) {
     return this.rolesService.getUserBotsWithRoles(userId);
   }
@@ -126,7 +139,7 @@ export class RolesController {
   async checkUserRole(
     @Query('userId') userId: string,
     @Query('botId') botId: string,
-    @Query('role') role: RoleTypeEnum
+    @Query('role') role: RoleTypeEnum,
   ): Promise<{ hasRole: boolean }> {
     const hasRole = await this.rolesService.userHasRole(userId, botId, role);
     return { hasRole };

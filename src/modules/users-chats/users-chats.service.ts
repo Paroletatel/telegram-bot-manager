@@ -1,10 +1,12 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { InjectModel } from "@nestjs/sequelize";
-import { UsersChats } from "./users-chats.model";
-import { Chats } from "./chats.model";
-import { MembershipService } from "../telegram/worker-bot/services/membership.service";
-import { Bot } from "./bots.model";
-import { UserChat } from "./user-chat.model";
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/sequelize';
+import { WhereOptions } from 'sequelize';
+
+import { MembershipService } from '../telegram/worker-bot/services/membership.service';
+import { Bot } from './bots.model';
+import { Chats } from './chats.model';
+import { UserChat } from './user-chat.model';
+import { UsersChats } from './users-chats.model';
 
 @Injectable()
 export class UsersChatsService {
@@ -14,7 +16,7 @@ export class UsersChatsService {
     @InjectModel(Chats) private chatsRepository: typeof Chats,
     @InjectModel(Bot) private botRepository: typeof Bot,
     @InjectModel(UserChat) private userChatRepository: typeof UserChat,
-    private readonly membershipService: MembershipService
+    private readonly membershipService: MembershipService,
   ) {}
 
   /**
@@ -25,11 +27,11 @@ export class UsersChatsService {
   async migrateToBotIds(): Promise<void> {
     try {
       const token = process.env.WORKER_BOT_TOKEN || process.env.BOT_TOKEN;
-      const username = process.env.MASTER_BOT_USERNAME || "master";
+      const username = process.env.MASTER_BOT_USERNAME || 'master';
 
       if (!token) {
         this.logger.warn(
-          "migrateToBotIds: переменная окружения WORKER_BOT_TOKEN/BOT_TOKEN не задана — пропускаю создание мастер-бота"
+          'migrateToBotIds: переменная окружения WORKER_BOT_TOKEN/BOT_TOKEN не задана — пропускаю создание мастер-бота',
         );
         return;
       }
@@ -37,7 +39,7 @@ export class UsersChatsService {
       // Находим по username, если нет — создаём; токен храним для запуска мульти-клиентов в будущем
       let master = await this.botRepository.findOne({ where: { username } });
       if (!master) {
-        master = await this.botRepository.create({ username, token, status: "active" as const });
+        master = await this.botRepository.create({ username, token, status: 'active' as const });
         this.logger.log(`migrateToBotIds: создан мастер-бот id=${master.id} username=${username}`);
       } else {
         // Актуализируем токен при необходимости
@@ -48,13 +50,17 @@ export class UsersChatsService {
       }
 
       // Массово проставляем botId там, где NULL
+      const whereChatsNullBot: WhereOptions<Chats> = { botId: null } as unknown as WhereOptions<Chats>;
       const [affected] = await this.chatsRepository.update(
         { botId: master.id },
-        { where: { botId: null } as any }
+        { where: whereChatsNullBot },
       );
-      this.logger.log(`migrateToBotIds: выставлен botId для чатов без владельца, affected=${affected}`);
-    } catch (e) {
-      this.logger.error("migrateToBotIds: ошибка миграции", e as any);
+      this.logger.log(
+        `migrateToBotIds: выставлен botId для чатов без владельца, affected=${affected}`,
+      );
+    } catch (e: unknown) {
+      const errMsg = e instanceof Error ? `${e.message}\n${e.stack ?? ''}` : String(e);
+      this.logger.error('migrateToBotIds: ошибка миграции', errMsg);
     }
   }
 
@@ -67,15 +73,20 @@ export class UsersChatsService {
     });
 
     this.logger.debug(
-      `setGroupToUser: existing user record = ${usersGroups ? 'FOUND' : 'NOT_FOUND'}`
+      `setGroupToUser: existing user record = ${usersGroups ? 'FOUND' : 'NOT_FOUND'}`,
     );
-    const groups = usersGroups && usersGroups.chatsIds ? Array.from(new Set(usersGroups.chatsIds)) : [];
+    const groups =
+      usersGroups && usersGroups.chatsIds ? Array.from(new Set(usersGroups.chatsIds)) : [];
     const hadGroup = groups.includes(groupId);
-    this.logger.debug(`setGroupToUser: current groups = [${groups.join(", ")}]; ${hadGroup ? 'already has' : 'will add'} ${groupId}`);
+    this.logger.debug(
+      `setGroupToUser: current groups = [${groups.join(', ')}]; ${hadGroup ? 'already has' : 'will add'} ${groupId}`,
+    );
     if (!hadGroup) {
       groups.push(groupId);
     } else {
-      this.logger.debug(`setGroupToUser: skip adding duplicate groupId=${groupId} for userId=${userId}`);
+      this.logger.debug(
+        `setGroupToUser: skip adding duplicate groupId=${groupId} for userId=${userId}`,
+      );
     }
 
     if (usersGroups) {
@@ -85,7 +96,7 @@ export class UsersChatsService {
           where: {
             userId,
           },
-        }
+        },
       );
       this.logger.log(`setGroupToUser: updated userId=${userId}, affected=${affected}`);
     } else {
@@ -93,21 +104,29 @@ export class UsersChatsService {
         userId,
         chatsIds: groups,
       });
-      this.logger.log(`setGroupToUser: created usersChats row id=${created.id} for userId=${userId}`);
+      this.logger.log(
+        `setGroupToUser: created usersChats row id=${created.id} for userId=${userId}`,
+      );
     }
 
     // Двойная запись в нормализованную таблицу user_chats (если существует)
     try {
       const chat = await this.chatsRepository.findOne({ where: { chatId: groupId } });
       const botId = chat?.botId ?? null;
-      const existingUC = await this.userChatRepository.findOne({ where: { userId, chatId: groupId, botId } as any });
+      const ucWhere: WhereOptions<UserChat> = { userId, chatId: groupId, botId } as unknown as WhereOptions<UserChat>;
+      const existingUC = await this.userChatRepository.findOne({ where: ucWhere });
       if (!existingUC) {
-        await this.userChatRepository.create({ userId, chatId: groupId, botId } as any);
-        this.logger.log(`setGroupToUser: created UserChat(userId=${userId}, chatId=${groupId}, botId=${botId ?? 'null'})`);
+        await this.userChatRepository.create({ userId, chatId: groupId, botId });
+        this.logger.log(
+          `setGroupToUser: created UserChat(userId=${userId}, chatId=${groupId}, botId=${botId ?? 'null'})`,
+        );
       }
-    } catch (e) {
+    } catch (e: unknown) {
       // Таблица user_chats может ещё не существовать, если sync выключен — игнорируем
-      this.logger.debug(`setGroupToUser: skip writing to user_chats (reason: ${ (e as any)?.message || e })`);
+      const msg = e instanceof Error ? e.message : String(e);
+      this.logger.debug(
+        `setGroupToUser: skip writing to user_chats (reason: ${msg})`,
+      );
     }
   }
 
@@ -115,25 +134,29 @@ export class UsersChatsService {
     this.logger.log(`addChat: chatId=${chatId}, chatName="${chatName}", botId=${botId ?? 'null'}`);
     // Пытаемся работать с botId (новая схема). При ошибке — fallback на legacy без botId
     try {
-      const where: any = botId !== undefined ? { chatId, botId } : { chatId };
+      const where: WhereOptions<Chats> = (botId !== undefined ? { chatId, botId } : { chatId }) as unknown as WhereOptions<Chats>;
       const existing = await this.chatsRepository.findOne({ where });
       if (existing) {
         const normalizedName = chatName || existing.chatName || '';
         if (normalizedName && normalizedName !== existing.chatName) {
           const [affected] = await this.chatsRepository.update(
             { chatName: normalizedName },
-            { where }
+            { where },
           );
           this.logger.log(`addChat: updated chatName for chatId=${chatId}, affected=${affected}`);
         }
         this.logger.debug(`addChat: chat already exists, skipping create for chatId=${chatId}`);
         return;
       }
-      const created = await this.chatsRepository.create({ chatId, chatName: chatName || '', botId: botId ?? null } as any);
+      const created = await this.chatsRepository.create({
+        chatId,
+        chatName: chatName || '',
+        botId: botId ?? null,
+      });
       this.logger.log(`addChat: created chat row id=${created.id} for chatId=${chatId}`);
       return;
-    } catch (e) {
-      const msg = (e as any)?.message || String(e);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
       this.logger.warn(`addChat: схема без botId? Перехожу в legacy-режим. Причина: ${msg}`);
       // Legacy: без botId
       const existingLegacy = await this.chatsRepository.findOne({ where: { chatId } });
@@ -142,15 +165,24 @@ export class UsersChatsService {
         if (normalizedName && normalizedName !== existingLegacy.chatName) {
           const [affected] = await this.chatsRepository.update(
             { chatName: normalizedName },
-            { where: { chatId } }
+            { where: { chatId } },
           );
-          this.logger.log(`addChat(legacy): updated chatName for chatId=${chatId}, affected=${affected}`);
+          this.logger.log(
+            `addChat(legacy): updated chatName for chatId=${chatId}, affected=${affected}`,
+          );
         }
-        this.logger.debug(`addChat(legacy): chat already exists, skipping create for chatId=${chatId}`);
+        this.logger.debug(
+          `addChat(legacy): chat already exists, skipping create for chatId=${chatId}`,
+        );
         return;
       }
-      const createdLegacy = await this.chatsRepository.create({ chatId, chatName: chatName || '' } as any);
-      this.logger.log(`addChat(legacy): created chat row id=${createdLegacy.id} for chatId=${chatId}`);
+      const createdLegacy = await this.chatsRepository.create({
+        chatId,
+        chatName: chatName || '',
+      });
+      this.logger.log(
+        `addChat(legacy): created chat row id=${createdLegacy.id} for chatId=${chatId}`,
+      );
     }
   }
 
@@ -196,7 +228,7 @@ export class UsersChatsService {
 
   async getAvailableForUser(
     userId: string,
-    options?: { verifyMembership?: boolean }
+    options?: { verifyMembership?: boolean },
   ): Promise<{ chatId: string; chatName: string }[]> {
     // чаты пользователя
     const userChats = await this.getUsersChats(userId);
@@ -214,7 +246,7 @@ export class UsersChatsService {
     let result = allBotChats
       .filter((c) => intersection.includes(c.chatId))
       .map((c) => ({ chatId: c.chatId, chatName: c.chatName || '' }));
-    
+
     // optionally verify membership via Telegram API
     if (options?.verifyMembership) {
       const verified: { chatId: string; chatName: string }[] = [];
@@ -222,7 +254,7 @@ export class UsersChatsService {
         try {
           const ok = await this.checkUserMembership(item.chatId, userId);
           if (ok) verified.push(item);
-        } catch (e) {
+        } catch {
           // ignore failures, treat as not a member
         }
       }
@@ -233,8 +265,8 @@ export class UsersChatsService {
   }
 
   async checkUserMembership(chatId: string, userId: string): Promise<boolean> {
-    console.log(chatId, userId);
-    
+    this.logger.warn(`checkUserMembership called: chatId=${chatId}, userId=${userId}`);
+
     //return await this.membershipService.checkMembership(chatId, userId);
     //TODO пока не разобрался, использую заглушку
     return Promise.resolve(true);

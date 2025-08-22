@@ -1,10 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import TelegramBot from 'node-telegram-bot-api';
-import { NavigationService } from './navigation.service';
-import { MembershipService } from './membership.service'; 
 import { ConfigService } from '@nestjs/config';
-import { UsersChatsService } from '../../../users-chats/users-chats.service';
+import TelegramBot from 'node-telegram-bot-api';
+
 import { UsersService } from '../../../users/users.service';
+import { UsersChatsService } from '../../../users-chats/users-chats.service';
+import { MembershipService } from './membership.service';
+import { NavigationService } from './navigation.service';
 
 @Injectable()
 export class GroupChatService {
@@ -13,7 +14,7 @@ export class GroupChatService {
 
   constructor(
     private readonly navigationService: NavigationService,
-    private readonly membershipService: MembershipService, 
+    private readonly membershipService: MembershipService,
     private readonly configService: ConfigService,
     private readonly usersChatsService: UsersChatsService,
     private readonly usersService: UsersService,
@@ -37,12 +38,14 @@ export class GroupChatService {
     message: TelegramBot.Message,
     groupId: string,
     userId: string,
-    text: string
+    text: string,
   ): Promise<void> {
     try {
       const chatType = message.chat.type;
       const chatTitle = message.chat.title || '';
-      this.logger.log(`processGroupMessage: chatType=${chatType}, groupId=${groupId}, userId=${userId}, title="${chatTitle}", textLen=${text?.length || 0}`);
+      this.logger.log(
+        `processGroupMessage: chatType=${chatType}, groupId=${groupId}, userId=${userId}, title="${chatTitle}", textLen=${text?.length || 0}`,
+      );
       if (!groupId) this.logger.warn('processGroupMessage: groupId is empty/undefined');
       if (!userId) this.logger.warn('processGroupMessage: userId is empty/undefined');
 
@@ -60,15 +63,20 @@ export class GroupChatService {
       if (message.from) {
         const tgId = String(userId);
         const dbUser = await this.usersService.findOrCreate(tgId, {
-          username: message.from.username || `${message.from.first_name || 'tg'}_${message.from.id}`,
+          username:
+            message.from.username || `${message.from.first_name || 'tg'}_${message.from.id}`,
           firstName: message.from.first_name || '',
         });
         try {
           await this.usersChatsService.setGroupToUser(String(dbUser.id), String(groupId));
-          this.logger.log(`processGroupMessage: setGroupToUser OK userDbId=${dbUser.id} groupId=${groupId}`);
+          this.logger.log(
+            `processGroupMessage: setGroupToUser OK userDbId=${dbUser.id} groupId=${groupId}`,
+          );
         } catch (e) {
           const err = e instanceof Error ? e.message : String(e);
-          this.logger.error(`processGroupMessage: setGroupToUser FAILED userDbId=${dbUser.id} groupId=${groupId}: ${err}`);
+          this.logger.error(
+            `processGroupMessage: setGroupToUser FAILED userDbId=${dbUser.id} groupId=${groupId}: ${err}`,
+          );
         }
       } else {
         this.logger.warn('processGroupMessage: message.from is missing, cannot resolve user');
@@ -79,7 +87,9 @@ export class GroupChatService {
       const isGroup = this.isGroupChat(message.chat.type);
       const isGroupCmd = /^\/group(@\w+)?(?:\s|$)/.test(text || '');
       if (isGroup || isGroupCmd) {
-        this.logger.log(`processGroupMessage: check /group match -> isGroup=${isGroup}, isGroupCmd=${isGroupCmd}, text="${(text || '').slice(0, 100)}"`);
+        this.logger.log(
+          `processGroupMessage: check /group match -> isGroup=${isGroup}, isGroupCmd=${isGroupCmd}, text="${(text || '').slice(0, 100)}"`,
+        );
       }
       if (isGroup && isGroupCmd) {
         return await this.handleGroupCommand(bot, message);
@@ -107,22 +117,28 @@ export class GroupChatService {
     if (message.from) {
       try {
         // ИСПОЛЬЗУЕМ MembershipService
-        this.logger.log(`handleGroupCommand: start admin check for userId=${message.from.id} in chatId=${message.chat.id}`);
-        const isAdmin = await this.membershipService.checkAdminMembership(
-          bot, 
-          message.chat.id, 
-          message.from.id
+        this.logger.log(
+          `handleGroupCommand: start admin check for userId=${message.from.id} in chatId=${message.chat.id}`,
         );
-        
+        const isAdmin = await this.membershipService.checkAdminMembership(
+          bot,
+          message.chat.id,
+          message.from.id,
+        );
+
         if (isAdmin) {
-          this.logger.log(`handleGroupCommand: admin confirmed, sending groupId to user ${message.from.id}`);
+          this.logger.log(
+            `handleGroupCommand: admin confirmed, sending groupId to user ${message.from.id}`,
+          );
           await bot.sendMessage(
             message.from.id,
             `ID группы: \`${message.chat.id}\`\n\nИспользуйте этот ID для добавления группы в систему.`,
-            { parse_mode: 'Markdown' }
+            { parse_mode: 'Markdown' },
           );
         } else {
-          this.logger.warn(`User ${message.from.id} tried to use /group but is not admin in chat ${message.chat.id}`);
+          this.logger.warn(
+            `User ${message.from.id} tried to use /group but is not admin in chat ${message.chat.id}`,
+          );
         }
       } catch (error) {
         this.logger.error('Error in group command:', error);
@@ -130,7 +146,10 @@ export class GroupChatService {
     }
   }
 
-  private async handleNewChatMembers(bot: TelegramBot, message: TelegramBot.Message): Promise<void> {
+  private async handleNewChatMembers(
+    bot: TelegramBot,
+    message: TelegramBot.Message,
+  ): Promise<void> {
     if (message.new_chat_members) {
       for (const newMember of message.new_chat_members) {
         // Если добавлен сам бот — регистрируем группу
@@ -139,10 +158,14 @@ export class GroupChatService {
           if (newMember.id === me.id && this.isGroupChat(message.chat.type)) {
             const chatTitle = message.chat.title || '';
             await this.usersChatsService.addChat(String(message.chat.id), chatTitle);
-            this.logger.log(`Группа зарегистрирована (my_chat_member/new_chat_members): ${message.chat.id} (${chatTitle})`);
+            this.logger.log(
+              `Группа зарегистрирована (my_chat_member/new_chat_members): ${message.chat.id} (${chatTitle})`,
+            );
           }
         } catch (e) {
-          this.logger.warn(`Не удалось обработать new_chat_members: ${e instanceof Error ? e.message : e}`);
+          this.logger.warn(
+            `Не удалось обработать new_chat_members: ${e instanceof Error ? e.message : e}`,
+          );
         }
       }
     }
@@ -155,7 +178,7 @@ export class GroupChatService {
       //   chatId,
       //   chatName
       // });
-      
+
       this.groupsID.push(chatId);
       this.logger.log(`Group ${chatName} (${chatId}) added`);
       return true;

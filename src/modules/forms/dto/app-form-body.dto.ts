@@ -1,8 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsArray, IsBoolean, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
-import { OrganizationDto } from './organization.dto';
+
 import { ContactDto } from './contact.dto';
+import { OrganizationDto } from './organization.dto';
 
 export class AppFormBodyDto {
   @ApiProperty({ description: 'ID пользователя' })

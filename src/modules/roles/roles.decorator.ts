@@ -1,4 +1,5 @@
 import { SetMetadata } from '@nestjs/common';
+
 import { RoleTypeEnum } from './roles.service';
 
 export const ROLES_KEY = 'roles';

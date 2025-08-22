@@ -1,5 +1,5 @@
-import { Options, Dialect } from 'sequelize';
 import dotenv from 'dotenv';
+import { Dialect,Options } from 'sequelize';
 
 dotenv.config();
 
@@ -39,7 +39,7 @@ const config: DatabaseConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: parseInt(process.env.DB_PORT || '5432', 10),
     dialect: 'postgres',
-    logging: console.log,
+    logging: console.warn,
   },
   test: {
     ...commonConfig,
@@ -60,12 +60,15 @@ const config: DatabaseConfig = {
     port: parseInt(process.env.DB_PORT || '5432', 10),
     dialect: 'postgres',
     logging: false,
-    dialectOptions: process.env.NODE_ENV === 'production' ? {
-      ssl: {
-        require: true,
-        rejectUnauthorized: false,
-      },
-    } : {},
+    dialectOptions:
+      process.env.NODE_ENV === 'production'
+        ? {
+            ssl: {
+              require: true,
+              rejectUnauthorized: false,
+            },
+          }
+        : {},
   },
 };
 

@@ -1,13 +1,24 @@
-import { Controller, Get, Post, Body, UseGuards, Request, Logger, BadRequestException, UnauthorizedException } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
-import { JwtAuthGuard } from './jwt-auth.guard';
-import { UsersService } from '../users/users.service';
-import { JwtAuthService, JwtPayload } from './jwt.service';
+import { BadRequestException, Body, Controller, Get, Logger, Post, Request, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { parse, validate } from '@telegram-apps/init-data-node';
-import { RolesService } from '../roles/roles.service';
 import { InjectModel } from '@nestjs/sequelize';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { parse, validate } from '@telegram-apps/init-data-node';
+import { Request as ExpressRequest } from 'express';
+import { WhereOptions } from 'sequelize';
+
+import { RoleTypeEnum } from '../../models';
+import { RolesService } from '../roles/roles.service';
+import { UsersService } from '../users/users.service';
 import { Bot } from '../users-chats/bots.model';
+import { AuthenticateDto } from './dto/authenticate.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { JwtAuthService, JwtPayload } from './jwt.service';
+import { JwtAuthGuard } from './jwt-auth.guard';
+
+interface JwtRequest extends ExpressRequest {
+  user?: { id?: string; username?: string; role?: RoleTypeEnum };
+}
 
 @ApiTags('auth')
 @Controller('auth')
@@ -25,13 +36,15 @@ export class AuthController {
   }
 
   @Post()
+  @Throttle({ default: { limit: 5, ttl: 10_000 } })
   @ApiOperation({ summary: 'Authenticate via Telegram initData' })
   @ApiResponse({ status: 200, description: 'Authenticated successfully' })
   @ApiResponse({ status: 400, description: 'Invalid initData' })
-  async authenticate(@Body() body: { initDataRaw: string }) {
+  @ApiResponse({ status: 429, description: 'Too Many Requests (rate limited)' })
+  async authenticate(@Body() body: AuthenticateDto) {
     this.logger.log('Вызван эндпоинт /auth (Telegram initData)');
 
-    const { initDataRaw } = body || {} as any;
+    const { initDataRaw } = body;
     if (!initDataRaw) {
       throw new BadRequestException('initDataRaw is required');
     }
@@ -39,16 +52,20 @@ export class AuthController {
     // 0) Пытаемся получить активные токены ботов из БД
     let dbTokens: string[] = [];
     try {
-      const bots = await this.botRepository.findAll({ where: { status: 'active' } as any });
+      const where: WhereOptions<Bot> = { status: 'active' } as unknown as WhereOptions<Bot>;
+      const bots = await this.botRepository.findAll({ where });
       dbTokens = bots.map((b) => b.token).filter(Boolean);
-    } catch (e) {
+    } catch {
       // Таблица может отсутствовать — это ок для одноботовского режима
-      this.logger.debug('AuthController: пропускаю чтение токенов из БД (возможно, нет таблицы bots)');
+      this.logger.debug(
+        'AuthController: пропускаю чтение токенов из БД (возможно, нет таблицы bots)',
+      );
     }
 
     // 1) Фолбэк на .env
-    const primaryToken = this.configService.get<string>('WORKER_BOT_TOKEN')
-      || this.configService.get<string>('BOT_TOKEN');
+    const primaryToken =
+      this.configService.get<string>('WORKER_BOT_TOKEN') ||
+      this.configService.get<string>('BOT_TOKEN');
     const extraTokensCsv = this.configService.get<string>('MULTI_BOT_TOKENS') || '';
     const extraTokens = extraTokensCsv
       .split(',')
@@ -71,8 +88,8 @@ export class AuthController {
           validate(initDataRaw, token);
           validated = true;
           break;
-        } catch (e) {
-          lastError = e;
+        } catch (_e) {
+          lastError = _e;
           // продолжаем пробовать следующие токены
         }
       }
@@ -90,7 +107,7 @@ export class AuthController {
       // 1) Создаём/находим пользователя в БД по telegramId
       const dbUser = await this.usersService.findOrCreate(String(tgUser.id), {
         username: tgUser.username || `${tgUser.first_name || 'tg'}_${tgUser.id}`,
-        firstName: tgUser.first_name || ''
+        firstName: tgUser.first_name || '',
       });
 
       // 2) Определяем «глобальную» роль пользователя (ADMIN если есть хотя бы одна admin-запись)
@@ -99,8 +116,8 @@ export class AuthController {
       // 3) Формируем JWT payload: кладём во "sub" внутренний UUID пользователя
       const payload: JwtPayload = {
         sub: String(dbUser.id),
-        username: dbUser.username || (tgUser.username || `${tgUser.first_name || 'tg'}_${tgUser.id}`),
-        role: globalRole as any,
+        username: dbUser.username || tgUser.username || `${tgUser.first_name || 'tg'}_${tgUser.id}`,
+        role: globalRole as RoleTypeEnum,
       };
 
       const accessToken = await this.jwtAuthService.generateAccessToken(payload);
@@ -134,31 +151,37 @@ export class AuthController {
   @ApiOperation({ summary: 'Get current user information' })
   @ApiResponse({ status: 200, description: 'Current user information' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getCurrentUser(@Request() req: any) {
+  async getCurrentUser(@Request() req: JwtRequest) {
     this.logger.log('Вызван эндпоинт /auth/me');
-    
+
     try {
       // JwtStrategy.validate возвращает объект вида { id: payload.sub, username, role, ... }
       const userId = req.user?.id;
       const roleFromJwt = req.user?.role || 'user';
       const username = req.user?.username || 'unknown';
-      
-      this.logger.log(`Получены данные из JWT: userId=${userId}, role=${roleFromJwt}, username=${username}`);
-      
+
+      this.logger.log(
+        `Получены данные из JWT: userId=${userId}, role=${roleFromJwt}, username=${username}`,
+      );
+
       // Берём актуальную роль из БД (глобальная роль для веб‑приложения)
       let actualRole = roleFromJwt;
       try {
         if (userId) {
           actualRole = await this.rolesService.getUserGlobalRole(String(userId));
         }
-      } catch (e) {
+      } catch {
         this.logger.warn('Не удалось получить актуальную роль из БД, используем роль из JWT');
       }
-      
+
       // Попробуем найти пользователя в БД
       let user;
       try {
-        user = await this.usersService.findById(userId);
+        if (userId) {
+          user = await this.usersService.findById(String(userId));
+        } else {
+          user = null;
+        }
         this.logger.log(`Пользователь найден в БД: ${user ? 'да' : 'нет'}`);
       } catch (dbError) {
         this.logger.error('Ошибка при поиске пользователя в БД:', dbError);
@@ -176,12 +199,11 @@ export class AuthController {
           isActive: true,
           createdAt: user?.createdAt || new Date(),
           updatedAt: user?.updatedAt || new Date(),
-        }
+        },
       };
-      
+
       this.logger.log('Возвращаем данные пользователя:', JSON.stringify(result));
       return result;
-      
     } catch (error) {
       this.logger.error('Ошибка в getCurrentUser:', error);
       throw error;
@@ -189,12 +211,14 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({ summary: 'Refresh JWT token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   @ApiResponse({ status: 401, description: 'Invalid refresh token' })
-  async refreshToken(@Body() body: { refreshToken: string }) {
+  @ApiResponse({ status: 429, description: 'Too Many Requests (rate limited)' })
+  async refreshToken(@Body() body: RefreshTokenDto) {
     this.logger.log('Вызван эндпоинт /auth/refresh');
-    const { refreshToken } = body || {} as any;
+    const { refreshToken } = body;
     if (!refreshToken) {
       throw new BadRequestException('refreshToken is required');
     }
@@ -205,17 +229,19 @@ export class AuthController {
     }
 
     // Пересчитываем актуальную роль по БД, чтобы токены отражали изменения ролей
-    let latestRole = decoded.role as any;
+    let latestRole: RoleTypeEnum = decoded.role as RoleTypeEnum;
     try {
-      latestRole = await this.rolesService.getUserGlobalRole(String(decoded.sub));
-    } catch (e) {
-      this.logger.warn('Не удалось получить актуальную роль из БД в refresh, используем роль из refresh токена');
+      latestRole = (await this.rolesService.getUserGlobalRole(String(decoded.sub))) as RoleTypeEnum;
+    } catch {
+      this.logger.warn(
+        'Не удалось получить актуальную роль из БД в refresh, используем роль из refresh токена',
+      );
     }
 
     const payload: JwtPayload = {
       sub: String(decoded.sub),
       username: decoded.username,
-      role: latestRole as any,
+      role: latestRole,
     };
 
     const accessToken = await this.jwtAuthService.generateAccessToken(payload);
@@ -236,7 +262,7 @@ export class AuthController {
   @ApiBearerAuth('JWT-auth')
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  async logout(@Request() req: any) {
+  async logout(@Request() _req: unknown) {
     // Пока что просто возвращаем успех
     // В будущем можно добавить логику инвалидации токенов
     return { message: 'Logged out successfully' };

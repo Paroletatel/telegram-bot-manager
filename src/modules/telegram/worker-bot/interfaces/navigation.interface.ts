@@ -13,23 +13,32 @@ export interface INavigationButton {
     inlineKeyboard?: string;
     text?: string;
   };
-  callback?: (chatId: string, data?: any) => Promise<void>;
+  callback?: (chatId: string, data?: string) => Promise<void>;
   callbackData?: string;
   appUrl?: string;
 }
 
 export interface INavigationItem {
-  type: "replyKeyboard" | "inlineKeyboard" | "text";
+  type: 'replyKeyboard' | 'inlineKeyboard' | 'text';
   name: string;
   text: string;
+  withInlineKeyboard?: string;
+  canBePrev?: 'yes' | 'no';
   buttons: INavigationButton[] | { [chatId: string]: INavigationButton[] };
-  buttonsFabric?: (chatId: string, data?: any) => Promise<INavigationButton[]>;
-  getKeyboard: (chatId: string, page?: number) => any;
-  clickButton: (chatId: string, identifier: string) => Promise<any>;
-  addButtons?: (chatId: string, data?: any) => Promise<void>;
-  handleInput?: (chatId: string, input: string) => Promise<void | "error">;
+  buttonsFabric?: (chatId: string, data?: unknown) => Promise<INavigationButton[]>;
+  getKeyboard: (
+    chatId: string,
+    page?: number,
+  ) => ITelegramKeyboard | ITelegramInlineKeyboard | {};
+  clickButton: (
+    chatId: string,
+    identifier: string,
+  ) => Promise<NavigationActions | {}>;
+  addButtons?: (chatId: string, data?: unknown) => Promise<void>;
+  handleInput?: (chatId: string, input: string) => Promise<void | 'error'>;
   setPrev?: (name: string | null, chatId: string) => void;
   getPrev?: (chatId: string) => string | undefined;
+  next?: NavigationActions;
 }
 
 export interface ITelegramKeyboard {
@@ -45,6 +54,12 @@ export interface ITelegramInlineKeyboard {
     }>
   >;
 }
+
+export type NavigationActions = {
+  replyKeyboard?: string;
+  inlineKeyboard?: string;
+  text?: string;
+};
 
 export interface ILongInlinePage {
   page: number;

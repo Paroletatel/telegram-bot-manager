@@ -1,11 +1,11 @@
-import { Injectable, OnModuleInit, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException,OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
+
 import { RoleBot } from '../../models/role-bot.model';
-import { RoleType } from '../../models/role-type.model';
 import { RoleTypeEnum } from '../../models/role-type.enum';
-import { User } from '../../models/user.model';
+import { RoleType } from '../../models/role-type.model';
 import { TelegramBot } from '../../models/telegram-bot.model';
-import { Op } from 'sequelize';
+import { User } from '../../models/user.model';
 import { JwtAuthService } from '../auth/jwt.service';
 
 export { RoleTypeEnum };
@@ -43,7 +43,7 @@ export class RolesService implements OnModuleInit {
   async getUserGlobalRole(userId: string): Promise<RoleTypeEnum> {
     const roleBot = await this.roleBotModel.findOne({
       where: { userId },
-      include: [RoleType]
+      include: [RoleType],
     });
 
     if (!roleBot) return RoleTypeEnum.USER;
@@ -51,7 +51,7 @@ export class RolesService implements OnModuleInit {
     // Быстрая проверка: если есть хотя бы одна запись ADMIN — вернуть ADMIN
     const anyAdmin = await this.roleBotModel.findOne({
       where: { userId },
-      include: [{ model: RoleType, as: 'roleType', where: { code: RoleTypeEnum.ADMIN } }]
+      include: [{ model: RoleType, as: 'roleType', where: { code: RoleTypeEnum.ADMIN } }],
     });
 
     return anyAdmin ? RoleTypeEnum.ADMIN : RoleTypeEnum.USER;
@@ -62,19 +62,19 @@ export class RolesService implements OnModuleInit {
       {
         code: RoleTypeEnum.USER,
         name: 'Обычный пользователь',
-        description: 'Базовые права доступа'
+        description: 'Базовые права доступа',
       },
       {
         code: RoleTypeEnum.ADMIN,
         name: 'Администратор',
-        description: 'Полные права доступа'
-      }
+        description: 'Полные права доступа',
+      },
     ];
 
     for (const role of roles) {
       await this.roleTypeModel.findOrCreate({
         where: { code: role.code },
-        defaults: role
+        defaults: role,
       });
     }
   }
@@ -94,15 +94,15 @@ export class RolesService implements OnModuleInit {
     const [roleBot, created] = await this.roleBotModel.findOrCreate({
       where: {
         userId,
-        botId
+        botId,
       },
       defaults: {
         userId,
         botId,
-        roleTypeCode: roleType
-      }
+        roleTypeCode: roleType,
+      },
     });
-    
+
     // Если запись уже существует, обновляем роль
     if (!created && roleBot.roleTypeCode !== roleType) {
       roleBot.roleTypeCode = roleType;
@@ -110,7 +110,7 @@ export class RolesService implements OnModuleInit {
     }
 
     return roleBot.reload({
-      include: [RoleType]
+      include: [RoleType],
     });
   }
 
@@ -122,11 +122,11 @@ export class RolesService implements OnModuleInit {
    */
   async getUserRoleForBot(userId: string, botId: string): Promise<RoleTypeEnum> {
     const roleBot = await this.roleBotModel.findOne({
-      where: { 
+      where: {
         userId,
-        botId
+        botId,
       },
-      include: [RoleType]
+      include: [RoleType],
     });
 
     return roleBot?.roleType?.code || RoleTypeEnum.USER;
@@ -149,18 +149,20 @@ export class RolesService implements OnModuleInit {
    * @param userId User ID
    * @returns Array of bots with their respective roles
    */
-  async getUserBotsWithRoles(userId: string): Promise<Array<{bot: TelegramBot, role: RoleTypeEnum}>> {
+  async getUserBotsWithRoles(
+    userId: string,
+  ): Promise<Array<{ bot: TelegramBot; role: RoleTypeEnum }>> {
     const roleBots = await this.roleBotModel.findAll({
       where: { userId },
       include: [
         { model: this.botModel, as: 'bot' },
-        { model: RoleType, as: 'roleType' }
-      ]
+        { model: RoleType, as: 'roleType' },
+      ],
     });
 
-    return roleBots.map(rb => ({
+    return roleBots.map((rb) => ({
       bot: rb.bot,
-      role: rb.roleType?.code || RoleTypeEnum.USER
+      role: rb.roleType?.code || RoleTypeEnum.USER,
     }));
   }
 
@@ -169,18 +171,18 @@ export class RolesService implements OnModuleInit {
    * @param botId Bot ID
    * @returns Array of users with their respective roles
    */
-  async getBotUsersWithRoles(botId: string): Promise<Array<{user: User, role: RoleTypeEnum}>> {
+  async getBotUsersWithRoles(botId: string): Promise<Array<{ user: User; role: RoleTypeEnum }>> {
     const roleBots = await this.roleBotModel.findAll({
       where: { botId },
       include: [
         { model: this.userModel, as: 'user' },
-        { model: RoleType, as: 'roleType' }
-      ]
+        { model: RoleType, as: 'roleType' },
+      ],
     });
 
-    return roleBots.map(rb => ({
+    return roleBots.map((rb) => ({
       user: rb.user,
-      role: rb.roleType?.code || RoleTypeEnum.USER
+      role: rb.roleType?.code || RoleTypeEnum.USER,
     }));
   }
 
@@ -192,7 +194,7 @@ export class RolesService implements OnModuleInit {
    */
   async removeRoleFromUser(userId: string, botId: string): Promise<boolean> {
     const result = await this.roleBotModel.destroy({
-      where: { userId, botId }
+      where: { userId, botId },
     });
 
     return result > 0;
@@ -205,7 +207,7 @@ export class RolesService implements OnModuleInit {
    */
   async generateTokenForUser(params: GenerateTokenParams): Promise<string> {
     const { userId, username, role, botId } = params;
-    
+
     // Проверяем, что роль действительна
     const isValidRole = Object.values(RoleTypeEnum).includes(role);
     if (!isValidRole) {
@@ -213,12 +215,7 @@ export class RolesService implements OnModuleInit {
     }
 
     // Генерируем токен с помощью JwtAuthService
-    return this.jwtAuthService.generateToken(
-      userId,
-      username,
-      role,
-      botId
-    );
+    return this.jwtAuthService.generateToken(userId, username, role, botId);
   }
 
   /**
@@ -239,7 +236,7 @@ export class RolesService implements OnModuleInit {
   private async verifyUserAndBotExist(userId: string, botId: string): Promise<void> {
     const [user, bot] = await Promise.all([
       this.userModel.findByPk(userId),
-      this.botModel.findByPk(botId)
+      this.botModel.findByPk(botId),
     ]);
 
     if (!user) {

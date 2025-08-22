@@ -1,5 +1,5 @@
-import { OrganizationInterface } from './interfaces/organization.interface';
 import { ContactInterface } from './interfaces/contact.interface';
+import { OrganizationInterface } from './interfaces/organization.interface';
 
 export interface AppFormDTO {
   userId: string;

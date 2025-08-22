@@ -1,14 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import TelegramBot from 'node-telegram-bot-api';
 import { ConfigService } from '@nestjs/config';
+import TelegramBot from 'node-telegram-bot-api';
 
 @Injectable()
 export class MembershipService {
   private readonly logger = new Logger(MembershipService.name);
 
-  constructor(
-    private readonly configService: ConfigService,
-  ) {}
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Проверяет является ли пользователь участником чата
@@ -17,12 +15,16 @@ export class MembershipService {
    * @param userId - ID пользователя
    * @returns Promise<boolean> - true если пользователь является участником
    */
-  async checkMembership(bot: TelegramBot, chatId: string | number, userId: string | number): Promise<boolean> {
+  async checkMembership(
+    bot: TelegramBot,
+    chatId: string | number,
+    userId: string | number,
+  ): Promise<boolean> {
     try {
       this.logger.debug(`Checking membership for user ${userId} in chat ${chatId}`);
-      
+
       const result = await bot.getChatMember(chatId, Number(userId));
-      
+
       if (!result) {
         this.logger.warn(`No membership info found for user ${userId} in chat ${chatId}`);
         return false;
@@ -31,11 +33,12 @@ export class MembershipService {
       // Проверяем статус участника
       const memberStatuses = ['creator', 'administrator', 'member'];
       const isMember = memberStatuses.includes(result.status);
-      
-      this.logger.debug(`User ${userId} status in chat ${chatId}: ${result.status}, isMember: ${isMember}`);
-      
+
+      this.logger.debug(
+        `User ${userId} status in chat ${chatId}: ${result.status}, isMember: ${isMember}`,
+      );
+
       return isMember;
-      
     } catch (error) {
       this.logger.error(`Error checking membership for user ${userId} in chat ${chatId}:`, error);
       return false;
@@ -49,17 +52,23 @@ export class MembershipService {
    * @param userId - ID пользователя
    * @returns Promise<boolean> - true если пользователь является администратором
    */
-  async checkAdminMembership(bot: TelegramBot, chatId: string | number, userId: string | number): Promise<boolean> {
+  async checkAdminMembership(
+    bot: TelegramBot,
+    chatId: string | number,
+    userId: string | number,
+  ): Promise<boolean> {
     try {
       const result = await bot.getChatMember(chatId, Number(userId));
-      
+
       if (!result) return false;
 
       const adminStatuses = ['creator', 'administrator'];
       return adminStatuses.includes(result.status);
-      
     } catch (error) {
-      this.logger.error(`Error checking admin membership for user ${userId} in chat ${chatId}:`, error);
+      this.logger.error(
+        `Error checking admin membership for user ${userId} in chat ${chatId}:`,
+        error,
+      );
       return false;
     }
   }
@@ -71,12 +80,19 @@ export class MembershipService {
    * @param userId - ID пользователя
    * @returns Promise<TelegramBot.ChatMember | null>
    */
-  async getChatMemberInfo(bot: TelegramBot, chatId: string | number, userId: string | number): Promise<TelegramBot.ChatMember | null> {
+  async getChatMemberInfo(
+    bot: TelegramBot,
+    chatId: string | number,
+    userId: string | number,
+  ): Promise<TelegramBot.ChatMember | null> {
     try {
       const result = await bot.getChatMember(chatId, Number(userId));
       return result || null;
     } catch (error) {
-      this.logger.error(`Error getting chat member info for user ${userId} in chat ${chatId}:`, error);
+      this.logger.error(
+        `Error getting chat member info for user ${userId} in chat ${chatId}:`,
+        error,
+      );
       return null;
     }
   }
@@ -88,7 +104,11 @@ export class MembershipService {
    * @param userId - ID пользователя
    * @returns Promise<string[]> - Список чатов где пользователь является участником
    */
-  async checkMultipleMemberships(bot: TelegramBot, chatIds: (string | number)[], userId: string | number): Promise<string[]> {
+  async checkMultipleMemberships(
+    bot: TelegramBot,
+    chatIds: (string | number)[],
+    userId: string | number,
+  ): Promise<string[]> {
     const memberChats: string[] = [];
 
     for (const chatId of chatIds) {

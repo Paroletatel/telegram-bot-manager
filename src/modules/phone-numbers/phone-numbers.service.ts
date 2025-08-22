@@ -1,9 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { PhoneNumber } from './phone-number.model';
 import { InjectModel } from '@nestjs/sequelize';
+
 import { Form } from '../forms/models/form.model';
 import { NewForm } from '../forms/models/new_form.model';
 import { formatPhoneNumber } from './format-phone.utils';
+import { PhoneNumber } from './phone-number.model';
 
 @Injectable()
 export class PhoneNumbersService {

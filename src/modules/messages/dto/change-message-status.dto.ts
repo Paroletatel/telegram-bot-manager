@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsInt, IsNotEmpty, IsPositive, IsString } from 'class-validator';
+import { IsIn, IsInt, IsPositive, IsString } from 'class-validator';
 
 export class ChangeMessageStatusDto {
   @ApiProperty({ enum: ['new', 'sended', 'read'], description: 'Новый статус сообщения' })

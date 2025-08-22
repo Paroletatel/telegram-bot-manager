@@ -1,24 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+
 import { NavigationService } from './navigation.service';
 
 @Injectable()
 export class StatusCheckerService {
   private readonly logger = new Logger(StatusCheckerService.name);
 
-  constructor(
-    private readonly navigationService: NavigationService,
-  ) {}
+  constructor(private readonly navigationService: NavigationService) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
   async checkStatuses(): Promise<void> {
     try {
       // TODO: Реализовать логику из checkStatuses.js
       // - checkNewMembers
-      // - checkNewForms  
+      // - checkNewForms
       // - checkNewMessages
       // - checkNewRequestsForAdmin
-      
+
       this.logger.debug('Status check completed (placeholder)');
     } catch (error) {
       this.logger.error('Error in status check:', error);

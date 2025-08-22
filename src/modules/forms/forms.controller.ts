@@ -1,12 +1,19 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
-import { FormsService } from './forms.service';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
+
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { Roles } from '../roles/roles.decorator';
+import { RolesGuard } from '../roles/roles.guard';
+import { RoleTypeEnum } from '../roles/roles.service';
 import { AppFormDTO } from './app-form.dto';
 import { AppFormBodyDto } from './dto/app-form-body.dto';
 import { UpsertAdminDraftDto } from './dto/upsert-admin-draft.dto';
+import { FormsService } from './forms.service';
 import { mapToAppFormDTO } from './utils/form-mapper';
 
 @ApiTags('Forms')
+@ApiBearerAuth('JWT-auth')
+@UseGuards(JwtAuthGuard)
 @Controller('forms')
 export class FormsController {
   constructor(private formsService: FormsService) {}
@@ -19,6 +26,8 @@ export class FormsController {
   @Get('/getNewFormsList')
   @ApiOperation({ summary: 'Список новых анкет, ожидающих подтверждения' })
   @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   getNewFormsList(@Query('botId') botId?: string) {
     return this.formsService.getNewFormsForApproveList(botId);
   }
@@ -45,12 +54,16 @@ export class FormsController {
 
   @Get('/deleteUser/:userId')
   @ApiOperation({ summary: 'Удалить пользователя и связанные записи' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   deleteUser(@Param('userId') userId: string) {
     return this.formsService.deleteUser(String(userId));
   }
 
   @Get('/checkNewRequests')
   @ApiOperation({ summary: 'Промаркировать filled -> waiting и вернуть список' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   checkNewRequests() {
     return this.formsService.checkNewRequests();
   }
@@ -58,6 +71,8 @@ export class FormsController {
   @Post('/approveNewForm')
   @ApiOperation({ summary: 'Подтвердить новую анкету' })
   @ApiBody({ type: AppFormBodyDto })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   approveNewForm(@Body() formInfo: AppFormBodyDto) {
     const mapped: AppFormDTO = mapToAppFormDTO(formInfo);
     return this.formsService.approveNewForm(mapped);
@@ -66,6 +81,8 @@ export class FormsController {
   @Post('/createFormByAdmin')
   @ApiOperation({ summary: 'Создать основную анкету админом' })
   @ApiBody({ type: AppFormBodyDto })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   createFormByAdmin(@Body() formInfo: AppFormBodyDto) {
     const mapped: AppFormDTO = mapToAppFormDTO(formInfo);
     return this.formsService.createFormByAdmin(mapped);
@@ -74,6 +91,8 @@ export class FormsController {
   @Post('/rejectNewForm')
   @ApiOperation({ summary: 'Отклонить новую анкету' })
   @ApiBody({ type: AppFormBodyDto })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   rejectNewForm(@Body() formInfo: AppFormBodyDto) {
     const mapped: AppFormDTO = mapToAppFormDTO(formInfo);
     return this.formsService.rejectNewForm(mapped);
@@ -118,6 +137,8 @@ export class FormsController {
   @Get('/getChangedFormsIds')
   @ApiOperation({ summary: 'Список анкет со статусом waiting/changed' })
   @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   getChangedFormsIds(@Query('botId') botId?: string) {
     return this.formsService.getChangedFormsIds(botId);
   }
@@ -132,6 +153,8 @@ export class FormsController {
   @Post('/adminApprovesChangesInForm')
   @ApiOperation({ summary: 'Админ подтверждает изменения анкеты' })
   @ApiBody({ type: AppFormBodyDto })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   adminApprovesChangesInForm(@Body() form: AppFormBodyDto) {
     const mapped: AppFormDTO = mapToAppFormDTO(form);
     return this.formsService.adminApprovesChangesInForm(mapped);
@@ -147,6 +170,8 @@ export class FormsController {
 
   @Get('/checkNewFormsChanges')
   @ApiOperation({ summary: 'Проверить и промаркировать changed -> waiting' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   checkNewFormsChanges() {
     return this.formsService.checkNewFormsChanges();
   }
@@ -154,12 +179,16 @@ export class FormsController {
   @Get('/getAllFormsList')
   @ApiOperation({ summary: 'Список всех анкет (userId + systemName)' })
   @ApiQuery({ name: 'botId', required: false, description: 'ID бота (для мультибота)' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   getAllFormsList(@Query('botId') botId?: string) {
     return this.formsService.getAllFormsList(botId);
   }
 
   @Get('/registrationAdmin/:userId')
   @ApiOperation({ summary: 'Админ завершает регистрацию пользователя' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   registrationAdmin(@Param('userId') userId: string) {
     return this.formsService.registrationAdmin(userId);
   }
@@ -175,6 +204,8 @@ export class FormsController {
   @Post('/adminDraft/upsert')
   @ApiOperation({ summary: 'Создать/обновить админский черновик формы' })
   @ApiBody({ type: UpsertAdminDraftDto })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   upsertAdminDraft(@Body() payload: UpsertAdminDraftDto) {
     const { draftId, form } = payload;
     const mapped: AppFormDTO = mapToAppFormDTO(form);
@@ -183,12 +214,16 @@ export class FormsController {
 
   @Get('/adminDraft/:draftId')
   @ApiOperation({ summary: 'Получить админский черновик формы' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   getAdminDraft(@Param('draftId') draftId: string) {
     return this.formsService.getAdminDraft(draftId);
   }
 
   @Delete('/adminDraft/:draftId')
   @ApiOperation({ summary: 'Удалить админский черновик формы' })
+  @UseGuards(RolesGuard)
+  @Roles(RoleTypeEnum.ADMIN)
   deleteAdminDraft(@Param('draftId') draftId: string) {
     return this.formsService.deleteAdminDraft(draftId);
   }

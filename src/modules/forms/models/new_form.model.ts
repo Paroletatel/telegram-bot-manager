@@ -1,4 +1,5 @@
 import { Column, DataType, Model, Table } from 'sequelize-typescript';
+
 import { ContactInterface } from '../interfaces/contact.interface';
 import { OrganizationInterface } from '../interfaces/organization.interface';
 

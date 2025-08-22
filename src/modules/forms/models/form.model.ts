@@ -1,6 +1,7 @@
 import { Column, DataType, Model, Table } from 'sequelize-typescript';
-import { OrganizationInterface } from '../interfaces/organization.interface';
+
 import { ContactInterface } from '../interfaces/contact.interface';
+import { OrganizationInterface } from '../interfaces/organization.interface';
 
 export type mainFormStatuses = 'changed' | 'waiting' | 'approved' | 'main';
 
