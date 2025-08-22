@@ -13,7 +13,7 @@ import { RoleBot, RoleType,TelegramBot, User } from '../models';
         uri: configService.get<string>('DATABASE_URL'),
         models: [TelegramBot, User, RoleBot, RoleType],
         autoLoadModels: true,
-        synchronize: true,
+        synchronize: false,
       }),
       inject: [ConfigService],
     }),

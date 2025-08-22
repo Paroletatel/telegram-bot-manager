@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { Op, WhereOptions } from 'sequelize';
+import { Sequelize } from 'sequelize-typescript';
 import { v4 as uuidv4 } from 'uuid';
 
 import { Contact } from '../contacts/contact.model';
@@ -8,6 +9,7 @@ import { PhoneNumber } from '../phone-numbers/phone-number.model';
 import { Settings } from '../settings/settings.model';
 import { UsersChatsService } from '../users-chats/users-chats.service';
 import { AppFormDTO } from './app-form.dto';
+import { FormsCommandsService } from './forms-commands.service';
 import { Form } from './models/form.model';
 import { FormPrev } from './models/form_prev.model';
 import { NewForm } from './models/new_form.model';
@@ -16,6 +18,7 @@ import { NewForm } from './models/new_form.model';
 export class FormsService {
   constructor(
     private chatsService: UsersChatsService,
+    private readonly commandsService: FormsCommandsService,
     @InjectModel(Form) private formRepository: typeof Form,
     @InjectModel(PhoneNumber) private phoneNumberRepository: typeof PhoneNumber,
     @InjectModel(Settings) private settingsRepository: typeof Settings,
@@ -25,139 +28,35 @@ export class FormsService {
     private prevFormsRepository: typeof FormPrev,
     @InjectModel(Contact)
     private contactsRepository: typeof Contact,
+    private sequelize: Sequelize,
   ) {}
 
+  /**
+   * @deprecated используйте FormsCommandsService.continueRegistration
+   */
   async continueRegistration(userId: string) {
-    await this.settingsRepository.create({
-      userId: userId,
-      availability: true,
-      accessAllTime: true,
-    });
-
-    const now = new Date();
-    await this.newFormsRepository.update(
-      {
-        registrationDate: `${now.getDate()}.${now.getMonth() + 1}.${now.getFullYear()}`,
-      },
-      {
-        where: {
-          userId,
-        },
-      },
-    );
+    return this.commandsService.continueRegistration(userId);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.approveNewForm
+   */
   async approveNewForm(formInfo: AppFormDTO) {
-    if (!formInfo) return;
-    const isNew = await this.formRepository.findOne({
-      where: {
-        userId: formInfo.userId,
-      },
-    });
-    if (isNew) return;
-    const form = {
-      ...formInfo,
-      status: 'approved',
-      searchAvailability: true,
-      isUserStarted: true,
-      // Приведение типов
-      surnameV: formInfo.surnameV ?? false,
-      name: formInfo.name ?? '',
-      nameV: formInfo.nameV ?? false,
-      otchestvo: formInfo.otchestvo ?? '',
-      otchestvoV: formInfo.otchestvoV ?? false,
-      birthDate: formInfo.birthDate ?? '',
-      birthDateV: formInfo.birthDateV ?? false,
-      tgName: formInfo.tgName ?? '',
-      tgNameV: formInfo.tgNameV ?? false,
-      tgSurname: formInfo.tgSurname ?? '',
-      tgSurnameV: formInfo.tgSurnameV ?? false,
-      tgUserName: formInfo.tgUserName ?? '',
-      tgUserNameV: formInfo.tgUserNameV ?? false,
-      registrationDate: formInfo.registrationDate ?? '',
-      constPhone: formInfo.constPhone ?? '',
-      constPhoneV: formInfo.constPhoneV ?? false,
-      // Преобразование строк в массивы
-      organizations: formInfo.organizations ? formInfo.organizations : [],
-      contacts: formInfo.contacts ? formInfo.contacts : [],
-      tags: formInfo.tags || [],
-      recommendations: formInfo.recommendations || [],
-    };
-
-    await this.formRepository.create({
-      ...form,
-      // botId попадёт из formInfo при наличии
-    });
-
-    await this.newFormsRepository.destroy({
-      where: {
-        userId: formInfo.userId,
-      },
-    });
+    return this.commandsService.approveNewForm(formInfo);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.createFormByAdmin
+   */
   async createFormByAdmin(formInfo: AppFormDTO) {
-    if (!formInfo) return;
-    const isNew = await this.formRepository.findOne({
-      where: {
-        constPhone: formInfo.constPhone,
-      },
-    });
-    if (isNew) return;
-    const tempUserId = uuidv4();
-    const form = {
-      ...formInfo,
-      userId: tempUserId,
-      status: 'main',
-      searchAvailability: true,
-      isUserStarted: false,
-      // Приведение типов
-      surnameV: formInfo.surnameV ?? false,
-      name: formInfo.name ?? '',
-      nameV: formInfo.nameV ?? false,
-      otchestvo: formInfo.otchestvo ?? '',
-      otchestvoV: formInfo.otchestvoV ?? false,
-      birthDate: formInfo.birthDate ?? '',
-      birthDateV: formInfo.birthDateV ?? false,
-      tgName: formInfo.tgName ?? '',
-      tgNameV: formInfo.tgNameV ?? false,
-      tgSurname: formInfo.tgSurname ?? '',
-      tgSurnameV: formInfo.tgSurnameV ?? false,
-      tgUserName: formInfo.tgUserName ?? '',
-      tgUserNameV: formInfo.tgUserNameV ?? false,
-      registrationDate: formInfo.registrationDate ?? '',
-      constPhone: formInfo.constPhone ?? '',
-      constPhoneV: formInfo.constPhoneV ?? false,
-      // Преобразование строк в массивы
-      organizations: formInfo.organizations ? formInfo.organizations : [],
-      contacts: formInfo.contacts ? formInfo.contacts : [],
-      tags: formInfo.tags || [],
-      recommendations: formInfo.recommendations || [],
-    };
-
-    await this.formRepository.create({
-      ...form,
-    });
-
-    return form;
+    return this.commandsService.createFormByAdmin(formInfo);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.rejectNewForm
+   */
   async rejectNewForm(formInfo: AppFormDTO) {
-    if (!formInfo) return;
-    const form = { ...formInfo, status: 'rejected' };
-
-    try {
-      await this.newFormsRepository.update(form, {
-        where: {
-          userId: formInfo.userId,
-          ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
-        },
-      });
-    } catch {
-      await this.newFormsRepository.update(form, {
-        where: { userId: formInfo.userId },
-      });
-    }
+    return this.commandsService.rejectNewForm(formInfo);
   }
 
   async getNewFormsForApproveList(botId?: string) {
@@ -176,28 +75,11 @@ export class FormsService {
     return res;
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.getUsersWithApprovedForm
+   */
   async getUsersWithApprovedForm() {
-    const approvedForms = await this.formRepository.findAll({
-      where: {
-        status: 'approved',
-      },
-    });
-    const res: Array<{ userId: string; status: string }> = [];
-    for (const form of approvedForms) {
-      res.push({ userId: form.userId, status: form.status });
-      await this.formRepository.update(
-        {
-          status: 'main',
-        },
-        {
-          where: {
-            userId: form.userId,
-            // без botId намеренно, для обратной совместимости перекидываем approved->main глобально
-          },
-        },
-      );
-    }
-    return res;
+    return this.commandsService.getUsersWithApprovedForm();
   }
 
   async searchUser(value: string, botId?: string) {
@@ -263,76 +145,18 @@ export class FormsService {
     return { form: formPlain, settings: settingsPlain };
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.deleteUser
+   */
   async deleteUser(userId: string) {
-    await this.formRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-
-    await this.newFormsRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-
-    await this.prevFormsRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-
-    await this.settingsRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-
-    await this.phoneNumberRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-
-    await this.contactsRepository.destroy({
-      where: {
-        userId,
-      },
-    });
-    await this.contactsRepository.destroy({
-      where: {
-        contactUserId: userId,
-      },
-    });
-
-    try {
-      //TODO ЗАГЛУШКА
-      //await axios.get(process.env.BOT_URL + '/deleteUser/' + userId);
-    } catch (e) {
-      Logger.error(e as Error);
-      return;
-    }
+    return this.commandsService.deleteUser(userId);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.checkNewRequests
+   */
   async checkNewRequests() {
-    const newForms = await this.newFormsRepository.findAll({
-      where: {
-        status: 'filled',
-      },
-    });
-
-    await this.newFormsRepository.update(
-      {
-        status: 'waiting',
-      },
-      {
-        where: {
-          status: 'filled',
-        },
-      },
-    );
-
-    return newForms;
+    return this.commandsService.checkNewRequests();
   }
 
   async getFreshCreatedForm(userId: string, botId?: string) {
@@ -348,34 +172,11 @@ export class FormsService {
     return res;
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.userFilledNewForm
+   */
   async userFilledNewForm(formInfo: AppFormDTO) {
-    const form = { ...formInfo, status: 'filled' };
-
-    try {
-      await this.newFormsRepository.update(
-        { ...form },
-        {
-          where: {
-            userId: String(formInfo.userId),
-            status: 'created',
-            ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
-          },
-        },
-      );
-    } catch {
-      await this.newFormsRepository.update(
-        { ...form },
-        {
-          where: { userId: String(formInfo.userId), status: 'created' },
-        },
-      );
-    }
-
-    const chats = await this.chatsService.getChats();
-    for (const chat of chats) {
-      const res = await this.chatsService.checkUserMembership(chat, formInfo.userId);
-      if (String(res) === 'true') await this.chatsService.setGroupToUser(formInfo.userId, chat);
-    }
+    return this.commandsService.userFilledNewForm(formInfo);
   }
 
   async getFirstFilledForm(userId: string, botId?: string) {
@@ -449,84 +250,25 @@ export class FormsService {
     return form;
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.adminApprovesChangesInForm
+   */
   async adminApprovesChangesInForm(formInfo: AppFormDTO) {
-    const prev = await this.prevFormsRepository.findOne({
-      where: {
-        userId: formInfo.userId,
-      },
-    });
-    if (prev) {
-      await this.prevFormsRepository.destroy({
-        where: {
-          userId: formInfo.userId,
-        },
-      });
-    }
-
-    const form = { ...formInfo, status: 'main' };
-
-    try {
-      await this.formRepository.update(form, {
-        where: {
-          userId: form.userId,
-          ...(formInfo.botId !== undefined ? { botId: formInfo.botId } : {}),
-        },
-      });
-    } catch {
-      await this.formRepository.update(form, {
-        where: { userId: form.userId },
-      });
-    }
-    return form;
+    return this.commandsService.adminApprovesChangesInForm(formInfo);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.changeFormByUser
+   */
   async changeFormByUser(form: AppFormDTO) {
-    const prev = await this.formRepository.findOne({
-      where: {
-        userId: form.userId,
-      },
-    });
-    const data = prev?.dataValues;
-    if (!data) return;
-    const { status: _status, searchAvailability: _searchAvailability, ...newPrev } = data;
-    await this.prevFormsRepository.upsert(newPrev);
-    const updatedForm = { ...form, status: 'changed' };
-    try {
-      await this.formRepository.update(updatedForm, {
-        where: {
-          userId: form.userId,
-          ...(form.botId !== undefined ? { botId: form.botId } : {}),
-        },
-      });
-    } catch {
-      await this.formRepository.update(updatedForm, {
-        where: { userId: form.userId },
-      });
-    }
-    return updatedForm;
+    return this.commandsService.changeFormByUser(form);
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.checkNewFormsChanges
+   */
   async checkNewFormsChanges() {
-    const res = await this.formRepository.findAll({
-      where: {
-        status: 'changed',
-      },
-    });
-
-    for (const form of res) {
-      await this.formRepository.update(
-        {
-          status: 'waiting',
-        },
-        {
-          where: {
-            userId: form.userId,
-            status: 'changed',
-          },
-        },
-      );
-    }
-    return !!res.length;
+    return this.commandsService.checkNewFormsChanges();
   }
 
   async getAllFormsList(botId?: string) {
@@ -548,24 +290,11 @@ export class FormsService {
     return res;
   }
 
+  /**
+   * @deprecated используйте FormsCommandsService.registrationAdmin
+   */
   async registrationAdmin(userId: string) {
-    const form = await this.newFormsRepository.findOne({
-      where: {
-        userId: userId,
-      },
-    });
-
-    await this.formRepository.create({
-      ...form?.dataValues,
-      status: 'main',
-      searchAvailability: true,
-      isUserStarted: true,
-    });
-    await this.newFormsRepository.destroy({
-      where: {
-        userId: userId,
-      },
-    });
+    return this.commandsService.registrationAdmin(userId);
   }
 
   async isUserAuth(userId: string, botId?: string) {

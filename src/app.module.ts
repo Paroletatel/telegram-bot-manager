@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { z } from 'zod';
 
 import { BotManagerCron } from './cron/bot-manager.cron';
 import { DatabaseModule } from './database/database.module';
@@ -24,6 +25,23 @@ import { UsersChatsModule } from './modules/users-chats/users-chats.module';
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
+      validate: (config: Record<string, unknown>) => {
+        const EnvSchema = z.object({
+          NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+          PORT: z.coerce.number().int().positive().default(3000),
+          JWT_SECRET: z.string().min(1, 'JWT_SECRET is required'),
+          DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+          MASTER_BOT_TOKEN: z.string().min(1, 'MASTER_BOT_TOKEN is required'),
+          FRONTEND_URL: z.string().url().optional(),
+          WEB_APP_URL: z.string().url().optional(),
+          IS_SYNC_DB: z.coerce.boolean().default(false),
+        });
+        const parsed = EnvSchema.safeParse(config);
+        if (!parsed.success) {
+          throw new Error(parsed.error.toString());
+        }
+        return parsed.data;
+      },
     }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([

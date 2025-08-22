@@ -53,7 +53,15 @@ export class AppFormBodyDto {
   @ValidateNested({ each: true })
   @Type(() => ContactDto)
   contacts?: ContactDto[];
-  @IsOptional() @IsArray() tags?: string[];
-  @IsOptional() @IsArray() recommendations?: string[];
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  recommendations?: string[];
   @IsOptional() @IsString() status?: string;
 }

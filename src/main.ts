@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { Sequelize } from 'sequelize-typescript';
 
 import { AppModule } from './app.module';
+import { RequestIdInterceptor } from './common/interceptors/request-id.interceptor';
 import { swaggerConfig } from './config/swagger.config';
 import { MasterBotService } from './modules/telegram/master-bot/master-bot.service';
 import { UsersChatsService } from './modules/users-chats/users-chats.service';
@@ -65,6 +66,7 @@ async function bootstrap() {
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    exposeHeaders: ['X-Request-Id'],
     optionsSuccessStatus: 204,
   });
 
@@ -111,9 +113,12 @@ async function bootstrap() {
     }),
   );
 
+  // Global interceptors
+  app.useGlobalInterceptors(new RequestIdInterceptor());
+
   // Swagger documentation (centralized config)
   const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api', app, document, {
+  SwaggerModule.setup('api/docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
       tagsSorter: 'alpha',
@@ -128,7 +133,7 @@ async function bootstrap() {
   // Start server
   await app.listen(port);
   logger.log(`Сервер запущен на порту ${port}`);
-  logger.log(`Документация API доступна по адресу: http://localhost:${port}/api`);
+  logger.log(`Документация API доступна по адресу: http://localhost:${port}/api/docs`);
 }
 
 bootstrap();
